@@ -8,3 +8,6 @@
 *.webp binary
 *.ttf binary
 *.otf binary
+
+# Los .cmd de Windows, con CRLF.
+*.cmd text eol=crlf

@@ -15,6 +15,8 @@ npm install
 npm start
 ```
 
+En Windows, `scripts\arrancar.cmd` hace lo mismo que `npm start` sin activar nada: pone delante el Node de `.entorno/`.
+
 Al arrancar sale un código QR: se escanea con Expo Go en el móvil, conectado a la misma wifi que el ordenador. Las comprobaciones son `npm test`, `npm run lint` y `npm run tipos`.
 
 ## Privacidad del repositorio
