@@ -4,6 +4,19 @@ App para apuntar entrenamientos de gimnasio, hyrox, calistenia, carrera y nataci
 
 Está en construcción. Se hace con Expo y React Native en TypeScript, y los datos se guardan solo en el móvil de cada persona: no hay servidor ni cuentas.
 
+## Cómo arrancarla
+
+Node va en un entorno de [micromamba](https://mamba.readthedocs.io/) dentro del proyecto, en `.entorno/`, que no se sube:
+
+```bash
+micromamba create -y -p ./.entorno -c conda-forge nodejs=26
+micromamba activate ./.entorno
+npm install
+npm start
+```
+
+Al arrancar sale un código QR: se escanea con Expo Go en el móvil, conectado a la misma wifi que el ordenador. Las comprobaciones son `npm test`, `npm run lint` y `npm run tipos`.
+
 ## Privacidad del repositorio
 
 El repositorio es público, así que nada privado puede entrar en él. Al clonarlo hay que activar las comprobaciones que corren antes de cada commit y de cada subida:

@@ -2,10 +2,12 @@
 # .githooks/pre-commit lo vuelve a mirar en cada commit, por si algo se cuela
 # con git add -f.
 
-# Herramientas locales y notas privadas: solo viven en este ordenador.
+# Herramientas locales, agentes de IA y notas privadas: solo viven en este
+# ordenador. La plantilla de Expo trae un AGENTS.md y una carpeta .claude/.
 .claude/
 CLAUDE.md
 CLAUDE.local.md
+AGENTS.md
 privado/
 
 # Secretos y credenciales de las tiendas y de Expo.
@@ -29,10 +31,13 @@ ios/
 dist/
 web-build/
 
-# Dependencias y cachés.
+# Dependencias, cachés y lo que Expo genera solo.
 node_modules/
 .expo/
 .expo-shared/
+expo-env.d.ts
+.kotlin/
+*.orig.*
 coverage/
 *.tsbuildinfo
 .metro-health-check*

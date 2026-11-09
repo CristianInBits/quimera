@@ -8,8 +8,9 @@
 #
 # Reglas:
 #   1. Autores y commits firman con la dirección noreply de GitHub.
-#   2. Nunca entran los ficheros de herramientas locales (.claude/, CLAUDE.md),
-#      la carpeta privado/, claves, credenciales ni compilaciones.
+#   2. Nunca entran los ficheros de herramientas locales y de agentes de IA
+#      (.claude/, CLAUDE.md, AGENTS.md), la carpeta privado/, claves,
+#      credenciales ni compilaciones.
 #   3. El contenido no lleva correos (salvo noreply y dominios de ejemplo),
 #      claves privadas, tokens de servicios ni rutas de una carpeta personal.
 #   4. Ni el contenido, ni los nombres de los ficheros, ni los autores, ni los
@@ -74,14 +75,18 @@ if [ -s "$prohibidas" ] && git config user.name | grep -qiF -f "$prohibidas"; th
 fi
 
 # 2. Ficheros que no entran nunca.
-grep -E '(^|/)\.claude(/|$)|(^|/)CLAUDE(\.local)?\.md$|(^|/)privado/|(^|/)\.env($|\.)|(^|/)credentials\.json$|\.(jks|keystore|p8|p12|pem|key|mobileprovision|apk|aab|ipa|jsonl)$' "$tmp/rutas" > "$tmp/rutas_mal" || true
+grep -E '(^|/)\.claude(/|$)|(^|/)CLAUDE(\.local)?\.md$|(^|/)AGENTS\.md$|(^|/)privado/|(^|/)\.env($|\.)|(^|/)credentials\.json$|\.(jks|keystore|p8|p12|pem|key|mobileprovision|apk|aab|ipa|jsonl)$' "$tmp/rutas" > "$tmp/rutas_mal" || true
 while IFS= read -r ruta; do
   fallo "fichero que no puede subirse: $ruta"
 done < "$tmp/rutas_mal"
 
 # 3. Contenido.
-# Correos, quitando antes los permitidos.
-sed -E 's/[A-Za-z0-9._%+-]+@(users\.noreply\.github\.com|github\.com|example\.(com|org|net)|ejemplo\.(com|es))//g' "$tmp/lineas" |
+# Correos, quitando antes los permitidos. El package-lock.json lo escribe npm
+# con los datos públicos de los paquetes, que a veces traen el correo de quien
+# los mantiene: ahí no se buscan correos sueltos, pero sí los datos personales
+# del punto 4.
+awk -F '\t' '$1 != "package-lock.json"' "$tmp/lineas" |
+  sed -E 's/[A-Za-z0-9._%+-]+@(users\.noreply\.github\.com|github\.com|example\.(com|org|net)|ejemplo\.(com|es))//g' |
   grep -E '[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}' > "$tmp/encontrado" || true
 avisar "correo electrónico" "$tmp/encontrado"
 
