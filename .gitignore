@@ -1,0 +1,50 @@
+# Lo que nunca entra en el repositorio, que es público. La comprobación de
+# .githooks/pre-commit lo vuelve a mirar en cada commit, por si algo se cuela
+# con git add -f.
+
+# Herramientas locales y notas privadas: solo viven en este ordenador.
+.claude/
+CLAUDE.md
+CLAUDE.local.md
+privado/
+
+# Secretos y credenciales de las tiendas y de Expo.
+.env
+.env.*
+credentials.json
+*.jks
+*.keystore
+*.p8
+*.p12
+*.pem
+*.key
+*.mobileprovision
+
+# Compilaciones. Las carpetas android/ e ios/ las genera Expo cuando hace falta.
+*.apk
+*.aab
+*.ipa
+android/
+ios/
+dist/
+web-build/
+
+# Dependencias y cachés.
+node_modules/
+.expo/
+.expo-shared/
+coverage/
+*.tsbuildinfo
+.metro-health-check*
+
+# El entorno de micromamba del proyecto, con Node dentro.
+.entorno/
+
+# Registros y ficheros que crea el sistema.
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+.DS_Store
+Thumbs.db
+desktop.ini

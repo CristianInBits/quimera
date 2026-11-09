@@ -1,0 +1,3 @@
+#!/bin/sh
+# Antes de cada commit: que no entre nada privado. Ver scripts/comprobar-privacidad.sh.
+exec sh "$(git rev-parse --show-toplevel)/scripts/comprobar-privacidad.sh"

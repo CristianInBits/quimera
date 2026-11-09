@@ -1,0 +1,10 @@
+# Todo el texto con saltos de línea LF, también en Windows: los scripts de sh
+# no funcionan con CRLF, y las herramientas de Node prefieren LF.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ttf binary
+*.otf binary

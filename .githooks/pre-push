@@ -1,0 +1,4 @@
+#!/bin/sh
+# Antes de subir: todo el repositorio y su historia, no solo el último commit.
+# Ver scripts/comprobar-privacidad.sh.
+exec sh "$(git rev-parse --show-toplevel)/scripts/comprobar-privacidad.sh" --todo
