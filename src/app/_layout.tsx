@@ -4,16 +4,30 @@ import { StatusBar } from 'expo-status-bar';
 import { useColorScheme } from 'react-native';
 
 import { prepararBaseDelMovil } from '@/datos/movil';
+import { PALETAS } from '@/tema/colores';
 
 // La raíz de toda la app. Abre la base del móvil y la prepara antes de enseñar
-// ninguna pantalla. La navegación es de momento una sola pantalla, sin
-// cabecera, que sigue el modo claro u oscuro del móvil.
+// ninguna pantalla. Debajo van las pestañas, y encima de ellas se abrirán las
+// pantallas de apuntar y de ver un entreno.
 export default function Raiz() {
-  const esquema = useColorScheme();
+  const oscuro = useColorScheme() === 'dark';
+  const paleta = PALETAS[oscuro ? 'oscuro' : 'claro'];
+  const base = oscuro ? DarkTheme : DefaultTheme;
+  const tema = {
+    ...base,
+    colors: {
+      ...base.colors,
+      background: paleta.fondo,
+      card: paleta.fondoElevado,
+      text: paleta.texto,
+      border: paleta.borde,
+      primary: paleta.texto,
+    },
+  };
   return (
     <SQLiteProvider databaseName="quimera.db" onInit={prepararBaseDelMovil}>
-      <ThemeProvider value={esquema === 'dark' ? DarkTheme : DefaultTheme}>
-        <Stack screenOptions={{ headerShown: false }} />
+      <ThemeProvider value={tema}>
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: paleta.fondo } }} />
         <StatusBar style="auto" />
       </ThemeProvider>
     </SQLiteProvider>

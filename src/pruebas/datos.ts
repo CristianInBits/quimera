@@ -31,15 +31,14 @@ export async function abrirBasePreparada(opciones?: OpcionesDeLaBaseDePrueba): P
 }
 
 /**
- * Ejercicios con claves de catálogo para los entrenos de ejemplo, mientras el
- * catálogo de la app solo trae correr.
+ * Ejercicios con claves de catálogo para los entrenos de ejemplo de hyrox,
+ * mientras el catálogo de la app no los trae (llegan en el paso 7).
  */
 async function anadirEjerciciosDePrueba(db: BaseDePrueba): Promise<void> {
   const ejercicios: [string, string, number, number, number, number, number][] = [
     ['wall-balls', 'Wall balls', 1, 1, 1, 0, 0],
     ['skierg', 'SkiErg', 0, 0, 1, 1, 1],
     ['burpees', 'Burpees', 1, 0, 1, 0, 0],
-    ['press-banca', 'Press banca', 1, 1, 0, 0, 0],
   ];
   for (const [id, nombre, repeticiones, peso, tiempo, distancia, calorias] of ejercicios) {
     await db.runAsync(

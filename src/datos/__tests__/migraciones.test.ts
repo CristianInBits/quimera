@@ -5,6 +5,7 @@ import { join } from 'node:path';
 
 import { leerAjuste } from '@/datos/ajustes';
 import { p, puertaDe } from '@/datos/base';
+import { CATALOGO, CATALOGO_VERSION, sincronizarCatalogoEn } from '@/datos/catalogo';
 import { guardarEntrenoEn, leerEntreno } from '@/datos/entrenos';
 import { huella } from '@/datos/huella';
 import { MIGRACIONES } from '@/datos/migraciones';
@@ -35,6 +36,7 @@ describe('Preparar la base', () => {
     const estado = await prepararBase(db, { ahora: () => T0 });
 
     expect(estado.version).toBe(MIGRACIONES.length);
+    expect(estado.ejercicios).toBe(CATALOGO.filter((e) => !e.retirado).length);
     expect(version(db)).toBe(MIGRACIONES.length);
     expect(db.mirar('PRAGMA foreign_keys')).toEqual([{ foreign_keys: 1 }]);
     expect(db.mirar('PRAGMA synchronous')).toEqual([{ synchronous: 1 }]);
@@ -45,6 +47,21 @@ describe('Preparar la base', () => {
     expect(db.mirar('PRAGMA foreign_key_check')).toEqual([]);
     expect(await huellasGuardadas(db)).toEqual(MIGRACIONES.map(huella));
     expect(db.mirar("SELECT id FROM ejercicio WHERE id = 'correr'")).toEqual([{ id: 'correr' }]);
+  });
+
+  it('el recuento de ejercicios no cuenta los propios ni los retirados', async () => {
+    const db = abrir();
+    await prepararBase(db, { ahora: () => T0 });
+    const sinPressBanca = CATALOGO.map((e) => (e.id === 'press-banca' ? { ...e, retirado: true as const } : e));
+    await puertaDe(db).escribir((tx) => sincronizarCatalogoEn(tx, T0, sinPressBanca, CATALOGO_VERSION + 1));
+    await db.runAsync(
+      `INSERT INTO ejercicio (id, nombre, grupo, usa_repeticiones, usa_peso, usa_tiempo, usa_distancia, usa_calorias, propio, modificado)
+       VALUES (:id, 'Mi ejercicio', 'pierna', 1, 1, 0, 0, 0, 1, :t)`,
+      p({ id: generadorDeIds()(), t: T0 }),
+    );
+
+    const estado = await prepararBase(db, { ahora: () => T0 });
+    expect(estado.ejercicios).toBe(CATALOGO.length - 1);
   });
 
   it('pone el diario WAL en una base guardada en disco', async () => {
@@ -74,7 +91,7 @@ describe('Preparar la base', () => {
     const db = abrir();
     await prepararBase(db, { ahora: () => T0 });
     await db.runAsync(
-      "INSERT INTO ejercicio VALUES ('wall-balls', 'Wall balls', 'hyrox', 1, 1, 1, 0, 0, 0, :t, 0), ('skierg', 'SkiErg', 'hyrox', 0, 0, 1, 1, 1, 0, :t, 0), ('burpees', 'Burpees', 'hyrox', 1, 0, 1, 0, 0, 0, :t, 0), ('press-banca', 'Press banca', 'pecho', 1, 1, 0, 0, 0, 0, :t, 0)",
+      "INSERT INTO ejercicio VALUES ('wall-balls', 'Wall balls', 'hyrox', 1, 1, 1, 0, 0, 0, :t, 0), ('skierg', 'SkiErg', 'hyrox', 0, 0, 1, 1, 1, 0, :t, 0), ('burpees', 'Burpees', 'hyrox', 1, 0, 1, 0, 0, 0, :t, 0)",
       p({ t: T0 }),
     );
     const nuevoId = generadorDeIds();
@@ -360,7 +377,7 @@ describe('Las reglas que la base hace cumplir', () => {
   });
 
   it.each([
-    ['propio con una clave de catálogo', { id: 'hip-thrust' }],
+    ['propio con una clave de catálogo', { id: 'mi-ejercicio' }],
     ['del catálogo con un UUID', { propio: 0 }],
     ['con la clave en mayúsculas', { id: 'Hip-Thrust', propio: 0 }],
     ['con un nombre de solo saltos de línea', { nombre: '\n\n' }],

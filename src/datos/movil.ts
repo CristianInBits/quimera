@@ -27,7 +27,7 @@ export async function prepararBaseDelMovil(db: SQLiteDatabase): Promise<void> {
   if (__DEV__) {
     console.log(
       `Quimera: base en la versión ${estado.version}, SQLite ${estado.sqlite}, ` +
-        `identificador de prueba ${nuevoId()}`,
+        `${estado.ejercicios} ejercicios del catálogo, identificador de prueba ${nuevoId()}`,
     );
   }
 }

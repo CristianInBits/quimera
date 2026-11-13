@@ -10,7 +10,7 @@ export type OpcionesDePreparar = {
   migraciones?: readonly string[];
 };
 
-export type EstadoDeLaBase = { version: number; sqlite: string };
+export type EstadoDeLaBase = { version: number; sqlite: string; ejercicios: number };
 
 /**
  * Prepara la base cada vez que se abre: los ajustes de la conexión, las
@@ -66,8 +66,13 @@ export async function prepararBase(
     return migraciones.length;
   });
 
-  const sqlite = await puerta.leer((l) => l.getFirstAsync<{ v: string }>('SELECT sqlite_version() AS v', {}));
-  return { version, sqlite: sqlite?.v ?? '¿?' };
+  const resumen = await puerta.leer((l) =>
+    l.getFirstAsync<{ sqlite: string; ejercicios: number }>(
+      'SELECT sqlite_version() AS sqlite, (SELECT COUNT(*) FROM ejercicio WHERE propio = 0 AND borrado = 0) AS ejercicios',
+      {},
+    ),
+  );
+  return { version, sqlite: resumen?.sqlite ?? '¿?', ejercicios: resumen?.ejercicios ?? 0 };
 }
 
 async function leerVersion(l: Lectura): Promise<number> {
