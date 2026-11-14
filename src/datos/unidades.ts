@@ -1,15 +1,13 @@
-// Las unidades de Quimera son enteras: el peso en gramos y el tiempo en
-// milisegundos. Así 62,5 kg o un 100 m en 1:28,4 se guardan exactos.
+// Las unidades de Quimera son enteras: el peso en gramos, la distancia en
+// metros y el tiempo en milisegundos. Así 62,5 kg o un 100 m en 1:28,4 se
+// guardan exactos.
 //
 // Los textos se convierten separando la parte entera de los decimales, nunca
 // multiplicando un número con decimales: 4,35 * 1000 da 4349,999… en coma
 // flotante, y la base rechazaría el valor.
 
-/**
- * Un peso escrito en kilos, con coma o con punto y hasta tres decimales,
- * en gramos. Da null si el texto no es un peso.
- */
-export function textoAGramos(texto: string): number | null {
+/** Un número con coma o con punto y hasta tres decimales, en milésimas: «62,5» da 62500. */
+function aMilesimas(texto: string): number | null {
   const r = /^\s*(\d{1,4})(?:[.,](\d{1,3}))?\s*$/.exec(texto);
   if (r === null) {
     return null;
@@ -17,14 +15,40 @@ export function textoAGramos(texto: string): number | null {
   return Number(r[1]) * 1000 + Number((r[2] ?? '').padEnd(3, '0'));
 }
 
+/** Unas milésimas como un número con coma decimal y sin ceros de más: 62500 da «62,5». */
+function milesimasATexto(milesimas: number): string {
+  const enteras = Math.floor(milesimas / 1000);
+  const resto = milesimas % 1000;
+  if (resto === 0) {
+    return String(enteras);
+  }
+  return `${enteras},${String(resto).padStart(3, '0').replace(/0+$/, '')}`;
+}
+
+/**
+ * Un peso escrito en kilos, con coma o con punto y hasta tres decimales,
+ * en gramos. Da null si el texto no es un peso.
+ */
+export function textoAGramos(texto: string): number | null {
+  return aMilesimas(texto);
+}
+
 /** Unos gramos como kilos con coma decimal y sin ceros de más: 62500 da «62,5». */
 export function gramosATexto(gramos: number): string {
-  const kilos = Math.floor(gramos / 1000);
-  const resto = gramos % 1000;
-  if (resto === 0) {
-    return String(kilos);
-  }
-  return `${kilos},${String(resto).padStart(3, '0').replace(/0+$/, '')}`;
+  return milesimasATexto(gramos);
+}
+
+/**
+ * Una distancia escrita en kilómetros, con coma o con punto y hasta tres
+ * decimales, en metros: «2,35» da 2350. Da null si el texto no es una distancia.
+ */
+export function textoAMetros(texto: string): number | null {
+  return aMilesimas(texto);
+}
+
+/** Unos metros como kilómetros con coma decimal y sin ceros de más: 2350 da «2,35». */
+export function metrosATexto(metros: number): string {
+  return milesimasATexto(metros);
 }
 
 /**

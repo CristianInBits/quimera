@@ -1,6 +1,6 @@
 import { act, fireEvent, waitFor } from '@testing-library/react-native';
 import { renderRouter, screen, testRouter } from 'expo-router/testing-library';
-import { Alert } from 'react-native';
+import { AccessibilityInfo, Alert } from 'react-native';
 
 import Historial from '@/app/(pestanas)/historial';
 import Pestanas from '@/app/(pestanas)/_layout';
@@ -8,9 +8,10 @@ import Inicio from '@/app/(pestanas)/index';
 import Raiz from '@/app/_layout';
 import Apuntar from '@/app/apuntar';
 import ApuntarGimnasio from '@/app/apuntar/gimnasio';
+import { p } from '@/datos/base';
 import * as entrenos from '@/datos/entrenos';
 import type { BaseDePrueba } from '@/pruebas/baseDePrueba';
-import { abrirBasePreparada } from '@/pruebas/datos';
+import { T0, abrirBasePreparada } from '@/pruebas/datos';
 
 // La pantalla de verdad sobre la base de prueba: la base que daría
 // expo-sqlite es la de node:sqlite, y los identificadores salen del generador
@@ -127,7 +128,7 @@ describe('Apuntar un entreno de gimnasio', () => {
     await apuntarUnPress();
     await testRouter.back('/apuntar');
     await dejarPasar();
-    expect(enElBorrador().bloques[0].series[0]).toMatchObject({ peso: '60', repeticiones: '8' });
+    expect(enElBorrador().bloques[0].vueltas[0][0]).toMatchObject({ peso: '60', repeticiones: '8' });
   });
 
   it('al volver al editor, el borrador sigue ahí', async () => {
@@ -240,6 +241,277 @@ describe('Apuntar un entreno de gimnasio', () => {
     expect(screen.queryByText('60 kg × 8')).toBeNull();
     await fireEvent.press(await screen.findByText('Deshacer'));
     expect(await screen.findByText('60 kg × 8')).toBeOnTheScreen();
+  });
+
+  it('dos ejercicios se enlazan en una superserie, se apuntan vuelta a vuelta y se guardan en un bloque', async () => {
+    const anuncio = espiar(jest.spyOn(AccessibilityInfo, 'announceForAccessibility'));
+    const app = await abrirElEditor();
+    await apuntarUnPress();
+    await anadir('Espalda', 'Remo con barra');
+    await fireEvent.changeText(await screen.findByLabelText('Peso (kg)'), '50');
+    await fireEvent.changeText(screen.getByLabelText('Repeticiones'), '10');
+    await fireEvent.press(screen.getByText('Enlazar en superserie con Remo con barra'));
+    expect(screen.getByText('SUPERSERIE')).toBeOnTheScreen();
+    expect(screen.getByText('Press banca + Remo con barra')).toBeOnTheScreen();
+
+    // Al marcar hecho el press de una vuelta, se abre el remo de la misma vuelta.
+    await fireEvent.press(screen.getByLabelText('Añadir una vuelta a la superserie de Press banca y Remo con barra'));
+    await fireEvent.press(await screen.findByText('Igual que la anterior (60 kg × 8)'));
+    await fireEvent.press(screen.getByText('Hecha ✓'));
+    // El botón desaparece: el lector de pantalla dice adónde se ha ido.
+    expect(anuncio).toHaveBeenCalledWith('Hecha. Ahora, Remo con barra, vuelta 2.');
+    await fireEvent.press(await screen.findByText('Igual que la anterior (50 kg × 10)'));
+    expect(screen.getByLabelText('Vuelta 2, Remo con barra: 50 kg × 10')).toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByLabelText(/^Descansos de la superserie de Press banca y Remo con barra/));
+    await fireEvent.changeText(
+      screen.getByLabelText('Descanso entre vueltas de la superserie de Press banca y Remo con barra, en segundos'),
+      '90',
+    );
+    expect(screen.getByText('1:30')).toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByLabelText('7, duro'));
+    await fireEvent.changeText(screen.getByLabelText('Duración en minutos'), '30');
+    await fireEvent.press(screen.getByText('Guardar'));
+
+    await waitFor(() => expect(app.getPathname()).toBe('/'));
+    expect(mockBase.mirar('SELECT COUNT(*) AS n FROM bloque')).toEqual([{ n: 1 }]);
+    expect(
+      mockBase.mirar('SELECT ronda, orden, ejercicio_id, peso_g, repeticiones, descanso_ms FROM serie ORDER BY ronda, orden'),
+    ).toEqual([
+      { ronda: 1, orden: 1, ejercicio_id: 'press-banca', peso_g: 60_000, repeticiones: 8, descanso_ms: 0 },
+      { ronda: 1, orden: 2, ejercicio_id: 'remo-barra', peso_g: 50_000, repeticiones: 10, descanso_ms: 90_000 },
+      { ronda: 2, orden: 1, ejercicio_id: 'press-banca', peso_g: 60_000, repeticiones: 8, descanso_ms: 0 },
+      { ronda: 2, orden: 2, ejercicio_id: 'remo-barra', peso_g: 50_000, repeticiones: 10, descanso_ms: null },
+    ]);
+  });
+
+  it('el mismo ejercicio con su nota se puede enlazar consigo mismo, y cada uno se nombra con su ordinal', async () => {
+    const errores = espiar(jest.spyOn(console, 'error'));
+    await abrirElEditor();
+    await anadir('Brazo', 'Curl con mancuernas');
+    // El segundo: el nombre sale ya en el editor, y el de la lista va detrás.
+    await fireEvent.press(screen.getByText('+ Añadir ejercicio'));
+    const enLaLista = await screen.findAllByText('Curl con mancuernas');
+    await fireEvent.press(enLaLista[enLaLista.length - 1]);
+    await fireEvent.press(screen.getByText('Enlazar en superserie con Curl con mancuernas'));
+    expect(screen.getAllByText('Curl con mancuernas: peso por mancuerna')).toHaveLength(2);
+    expect(screen.getByLabelText('Vuelta 1, Curl con mancuernas (el 2.º): Sin apuntar')).toBeOnTheScreen();
+    // Dos notas iguales no dan claves repetidas.
+    expect(errores.mock.calls.flat().join(' ')).not.toMatch(/same key/);
+  });
+
+  it('una superserie se separa en sus dos ejercicios sin perder lo apuntado', async () => {
+    await abrirElEditor();
+    await apuntarUnPress();
+    await anadir('Espalda', 'Remo con barra');
+    await fireEvent.changeText(await screen.findByLabelText('Repeticiones'), '10');
+    await fireEvent.press(screen.getByText('Enlazar en superserie con Remo con barra'));
+    await fireEvent.press(screen.getByLabelText('Separar la superserie de Press banca y Remo con barra'));
+    expect(screen.queryByText('SUPERSERIE')).toBeNull();
+    expect(screen.getByLabelText('Serie 1: 60 kg × 8')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Serie 1: 10 reps')).toBeOnTheScreen();
+    expect(screen.getByText('Enlazar en superserie con Remo con barra')).toBeOnTheScreen();
+  });
+
+  it('la carrera en cinta se apunta con su distancia y sus minutos, y se guarda como un bloque de carrera', async () => {
+    const app = await abrirElEditor();
+    await fireEvent.press(screen.getByText('+ Carrera en cinta'));
+    await fireEvent.press(screen.getByLabelText('Subir Distancia de la carrera en cinta, en kilómetros'));
+    await fireEvent.press(screen.getByLabelText('Subir Distancia de la carrera en cinta, en kilómetros'));
+    expect(screen.getByLabelText('Distancia de la carrera en cinta, en kilómetros').props.value).toBe('1');
+    await fireEvent.changeText(screen.getByLabelText('Distancia de la carrera en cinta, en kilómetros'), '2,35');
+    await fireEvent.changeText(screen.getByLabelText('Tiempo de la carrera en cinta, en minutos'), '12');
+    await apuntarUnPress();
+    await fireEvent.press(screen.getByLabelText('7, duro'));
+    await fireEvent.changeText(screen.getByLabelText('Duración en minutos'), '45');
+    await fireEvent.press(screen.getByText('Guardar'));
+
+    await waitFor(() => expect(app.getPathname()).toBe('/'));
+    expect(mockBase.mirar('SELECT orden, metros_corridos, tiempo_ms FROM bloque ORDER BY orden')).toEqual([
+      { orden: 1, metros_corridos: 2350, tiempo_ms: 720_000 },
+      { orden: 2, metros_corridos: null, tiempo_ms: null },
+    ]);
+  });
+
+  it('una carrera sin distancia no se guarda, y lo dice', async () => {
+    await abrirElEditor();
+    await fireEvent.press(screen.getByText('+ Carrera en cinta'));
+    await fireEvent.changeText(screen.getByLabelText('Tiempo de la carrera en cinta, en minutos'), '10');
+    await fireEvent.press(screen.getByLabelText('3, suave'));
+    await fireEvent.changeText(screen.getByLabelText('Duración en minutos'), '15');
+    await fireEvent.press(screen.getByText('Guardar'));
+    await dejarPasar();
+    expect(screen.getByText('Carrera en cinta: falta la distancia.')).toBeOnTheScreen();
+    expect(guardados()).toBe(0);
+  });
+
+  it('el descanso antes del siguiente se apunta en la carrera y en un ejercicio, y el último bloque no lo enseña', async () => {
+    const app = await abrirElEditor();
+    await fireEvent.press(screen.getByText('+ Carrera en cinta'));
+    await fireEvent.changeText(screen.getByLabelText('Distancia de la carrera en cinta, en kilómetros'), '2');
+    // Sola, la carrera es el último bloque: no tiene descansos que apuntar.
+    expect(screen.queryByLabelText(/^Descansos de la carrera en cinta/)).toBeNull();
+
+    await anadir(null, 'Press banca');
+    await fireEvent.changeText(await screen.findByLabelText('Repeticiones'), '8');
+    await anadir('Espalda', 'Remo con barra');
+    await fireEvent.changeText(await screen.findByLabelText('Repeticiones'), '10');
+
+    await fireEvent.press(screen.getByLabelText(/^Descansos de la carrera en cinta/));
+    await fireEvent.changeText(screen.getByLabelText('Descanso después de la carrera en cinta, en segundos'), '120');
+    expect(screen.getByLabelText('Descansos de la carrera en cinta: 2:00 antes del siguiente')).toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByLabelText(/^Descansos de Press banca/));
+    await fireEvent.changeText(screen.getByLabelText('Descanso después de Press banca, en segundos'), '0');
+    expect(screen.getByLabelText('Descansos de Press banca: sin parar antes del siguiente')).toBeOnTheScreen();
+
+    // El remo es el último: tiene el descanso entre series, pero no el de después.
+    await fireEvent.press(screen.getByLabelText(/^Descansos de Remo con barra/));
+    await fireEvent.press(screen.getByLabelText('Subir Descanso entre series de Remo con barra, en segundos'));
+    await fireEvent.press(screen.getByLabelText('Subir Descanso entre series de Remo con barra, en segundos'));
+    expect(screen.getByLabelText('Descanso entre series de Remo con barra, en segundos').props.value).toBe('30');
+    expect(screen.queryByLabelText('Descanso después de Remo con barra, en segundos')).toBeNull();
+
+    await fireEvent.press(screen.getByLabelText('7, duro'));
+    await fireEvent.changeText(screen.getByLabelText('Duración en minutos'), '45');
+    await fireEvent.press(screen.getByText('Guardar'));
+    await waitFor(() => expect(app.getPathname()).toBe('/'));
+    expect(mockBase.mirar('SELECT orden, descanso_ms FROM bloque ORDER BY orden')).toEqual([
+      { orden: 1, descanso_ms: 120_000 },
+      { orden: 2, descanso_ms: 0 },
+      { orden: 3, descanso_ms: null },
+    ]);
+  });
+
+  it('un borrador con una superserie y sus descansos se vuelve a abrir igual', async () => {
+    await abrirElEditor();
+    await anadir(null, 'Press banca');
+    await fireEvent.changeText(await screen.findByLabelText('Repeticiones'), '8');
+    await anadir('Espalda', 'Remo con barra');
+    await fireEvent.changeText(await screen.findByLabelText('Repeticiones'), '10');
+    await fireEvent.press(screen.getByText('Enlazar en superserie con Remo con barra'));
+    await fireEvent.press(screen.getByLabelText(/^Descansos de la superserie de Press banca y Remo con barra/));
+    await fireEvent.changeText(
+      screen.getByLabelText('Descanso entre vueltas de la superserie de Press banca y Remo con barra, en segundos'),
+      '90',
+    );
+    await dejarPasar();
+    await testRouter.back('/apuntar');
+    await fireEvent.press(await screen.findByLabelText('Gimnasio, tienes uno a medias'));
+    expect(await screen.findByText('SUPERSERIE')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Descansos de la superserie de Press banca y Remo con barra: 1:30 entre vueltas')).toBeOnTheScreen();
+    expect(screen.queryByText(/no sabe leer/)).toBeNull();
+  });
+
+  it('enlazar en superserie se puede deshacer, y todo vuelve como estaba', async () => {
+    await abrirElEditor();
+    await apuntarUnPress();
+    await anadir('Espalda', 'Remo con barra');
+    await fireEvent.changeText(await screen.findByLabelText('Repeticiones'), '10');
+    await fireEvent.press(screen.getByLabelText(/^Descansos de Press banca/));
+    await fireEvent.changeText(screen.getByLabelText('Descanso después de Press banca, en segundos'), '120');
+    await fireEvent.press(screen.getByText('Enlazar en superserie con Remo con barra'));
+    expect(screen.getByText('SUPERSERIE')).toBeOnTheScreen();
+    await fireEvent.press(await screen.findByText('Deshacer'));
+    expect(screen.queryByText('SUPERSERIE')).toBeNull();
+    expect(screen.getByLabelText('Descansos de Press banca: 2:00 antes del siguiente')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Serie 1: 10 reps')).toBeOnTheScreen();
+  });
+
+  it('quitar la carrera se puede deshacer, y quitar una vuelta de una superserie quita solo esa vuelta', async () => {
+    await abrirElEditor();
+    await fireEvent.press(screen.getByText('+ Carrera en cinta'));
+    await fireEvent.changeText(screen.getByLabelText('Distancia de la carrera en cinta, en kilómetros'), '2');
+    await fireEvent.press(screen.getByLabelText('Quitar la carrera en cinta'));
+    expect(screen.queryByLabelText('Distancia de la carrera en cinta, en kilómetros')).toBeNull();
+    await fireEvent.press(await screen.findByText('Deshacer'));
+    expect(screen.getByLabelText('Distancia de la carrera en cinta, en kilómetros').props.value).toBe('2');
+
+    await anadir(null, 'Press banca');
+    await fireEvent.changeText(await screen.findByLabelText('Repeticiones'), '8');
+    await anadir('Espalda', 'Remo con barra');
+    await fireEvent.changeText(await screen.findByLabelText('Repeticiones'), '10');
+    await fireEvent.press(screen.getByText('Enlazar en superserie con Remo con barra'));
+    await fireEvent.press(screen.getByLabelText('Añadir una vuelta a la superserie de Press banca y Remo con barra'));
+    await fireEvent.press(screen.getByText('Quitar la vuelta 2'));
+    expect(screen.queryByLabelText(/^Vuelta 2,/)).toBeNull();
+    expect(screen.getByLabelText('Vuelta 1, Press banca: 8 reps')).toBeOnTheScreen();
+    expect(screen.getByText('SUPERSERIE')).toBeOnTheScreen();
+  });
+
+  it('enlazar no mueve ni quita la carrera de delante ni el ejercicio de detrás', async () => {
+    const app = await abrirElEditor();
+    await fireEvent.press(screen.getByText('+ Carrera en cinta'));
+    await fireEvent.changeText(screen.getByLabelText('Distancia de la carrera en cinta, en kilómetros'), '2');
+    await anadir(null, 'Press banca');
+    await fireEvent.changeText(await screen.findByLabelText('Repeticiones'), '8');
+    await anadir('Espalda', 'Remo con barra');
+    await fireEvent.changeText(await screen.findByLabelText('Repeticiones'), '10');
+    await anadir('Core', 'Plancha');
+    await fireEvent.changeText(await screen.findByLabelText('Segundos'), '60');
+    await fireEvent.press(screen.getByText('Enlazar en superserie con Remo con barra'));
+    await fireEvent.press(screen.getByLabelText(/^Separar la superserie/));
+    await fireEvent.press(screen.getByText('Enlazar en superserie con Remo con barra'));
+
+    await fireEvent.press(screen.getByLabelText('7, duro'));
+    await fireEvent.changeText(screen.getByLabelText('Duración en minutos'), '45');
+    await fireEvent.press(screen.getByText('Guardar'));
+    await waitFor(() => expect(app.getPathname()).toBe('/'));
+    expect(
+      mockBase.mirar(
+        `SELECT b.orden, b.metros_corridos AS metros, group_concat(s.ejercicio_id, '+') AS ejercicios
+         FROM bloque AS b LEFT JOIN serie AS s ON s.bloque_id = b.id GROUP BY b.id ORDER BY b.orden`,
+      ),
+    ).toEqual([
+      { orden: 1, metros: 2000, ejercicios: null },
+      { orden: 2, metros: null, ejercicios: expect.stringMatching(/^(press-banca\+remo-barra|remo-barra\+press-banca)$/) },
+      { orden: 3, metros: null, ejercicios: 'plancha' },
+    ]);
+  });
+
+  it('el rinoceronte sale en Apuntar junto al gimnasio', async () => {
+    await renderRouter(RUTAS, { initialUrl: '/apuntar' });
+    const mascotas = await screen.findAllByTestId('mascota');
+    expect(mascotas.map((mascota) => mascota.props.source.testUri)).toEqual([expect.stringMatching(/rinoceronte\.png$/)]);
+  });
+
+  it('en el editor, el rinoceronte cambia con el esfuerzo', async () => {
+    await renderRouter(RUTAS, { initialUrl: '/apuntar/gimnasio' });
+    await screen.findByText('+ Añadir ejercicio');
+    const dibujo = () => screen.getByTestId('mascota').props.source.testUri;
+    expect(dibujo()).toMatch(/rinoceronte\.png$/);
+    await fireEvent.press(screen.getByLabelText('7, duro'));
+    expect(dibujo()).toMatch(/rinoceronte-4\.png$/);
+    await fireEvent.press(screen.getByLabelText('10, máximo'));
+    expect(dibujo()).toMatch(/rinoceronte-5\.png$/);
+  });
+
+  it('un borrador del editor anterior se abre igual, sin perder nada', async () => {
+    const deLaForma1 = {
+      formato: 1,
+      id: '019a6e8c-0000-7000-8000-000000000001',
+      selloLeido: null,
+      fecha: '2026-11-09',
+      hora: '10:00',
+      bloques: [
+        {
+          id: '019a6e8c-0000-7000-8000-000000000002',
+          ejercicioId: 'press-banca',
+          series: [{ id: '019a6e8c-0000-7000-8000-000000000003', repeticiones: '8', peso: '60', segundos: '', hecha: null }],
+        },
+      ],
+      minutos: '',
+      esfuerzo: null,
+      notas: '',
+    };
+    await mockBase.runAsync(
+      'INSERT INTO ajuste (clave, valor, modificado) VALUES (:clave, :valor, :modificado)',
+      p({ clave: 'local.borrador.gimnasio', valor: JSON.stringify(deLaForma1), modificado: T0 }),
+    );
+    await renderRouter(RUTAS, { initialUrl: '/apuntar/gimnasio' });
+    expect(await screen.findByText('60 kg × 8')).toBeOnTheScreen();
+    expect(screen.queryByText(/no sabe leer/)).toBeNull();
   });
 
   it('desde Apuntar se elige el gimnasio, y las demás disciplinas salen como pronto y no se abren', async () => {

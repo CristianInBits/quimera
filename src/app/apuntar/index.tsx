@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Mascota } from '@/componentes/Mascota';
 import { leerAjuste } from '@/datos/ajustes';
 import type { Disciplina } from '@/datos/entrenos';
 import { usePuerta } from '@/datos/usarBase';
@@ -65,6 +66,7 @@ export default function Apuntar() {
             ]}
           >
             <View style={[estilos.marca, { backgroundColor: d.lista ? color : paleta.borde }]} />
+            {d.lista && <Mascota disciplina={d.id} tamano={56} />}
             <View style={estilos.textos}>
               <Text style={[estilos.nombre, { color: d.lista ? paleta.texto : paleta.textoTenue }]}>{d.nombre}</Text>
               {!d.lista && <Text style={[estilos.nota, { color: paleta.textoTenue }]}>Pronto</Text>}

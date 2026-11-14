@@ -16,6 +16,7 @@ import { AvisoDeshacer } from '@/componentes/AvisoDeshacer';
 import { Boton } from '@/componentes/Boton';
 import { CampoDeFecha } from '@/componentes/CampoDeFecha';
 import { EvitarTeclado } from '@/componentes/EvitarTeclado';
+import { Mascota } from '@/componentes/Mascota';
 import { SelectorDeEsfuerzo } from '@/componentes/SelectorDeEsfuerzo';
 import { useHoy } from '@/componentes/useHoy';
 import { leerAjuste, ponerAjusteEn, quitarAjusteLocalEn } from '@/datos/ajustes';
@@ -25,15 +26,19 @@ import { EntrenoCambiado, EntrenoNoValido, guardarEntrenoEn } from '@/datos/entr
 import { nuevoId } from '@/datos/movil';
 import { usePuerta } from '@/datos/usarBase';
 import { BloqueDeEjercicio } from '@/gimnasio/BloqueDeEjercicio';
+import { CarreraEnCinta } from '@/gimnasio/CarreraEnCinta';
 import {
   CLAVE_DEL_BORRADOR,
   MINUTOS_MEDIDOS_MINIMOS,
+  anadirCarrera,
   anadirEjercicio,
   cambiarEntreno,
+  carrerasFueraDeLoMedido,
   empezarAhoraSiVacio,
   entrenoNuevo,
   leerBorrador,
   minutosMedidos,
+  nombresDeLosBloques,
   textoDeMinutos,
   tieneAlgo,
   validar,
@@ -85,7 +90,7 @@ export default function ApuntarGimnasio() {
       .leer(async (l) => {
         const valor = await leerAjuste(l, CLAVE_DEL_BORRADOR);
         const borrador = leerBorrador(valor);
-        const ids = borrador?.bloques.map((bloque) => bloque.ejercicioId) ?? [];
+        const ids = borrador?.bloques.flatMap((bloque) => (bloque.tipo === 'ejercicios' ? bloque.ejercicioIds : [])) ?? [];
         return {
           elegibles: await leerEjercicios(l),
           porClave: await leerEjerciciosPorClave(l, ids),
@@ -192,10 +197,15 @@ export default function ApuntarGimnasio() {
   }
 
   const porId = new Map([...retirados, ...elegibles].map((e) => [e.id, e]));
+  const nombres = nombresDeLosBloques(entreno, porId);
   const medidos = minutosMedidos(entreno);
+  // Lo que se corrió antes de la primera serie hecha o después de la última, como el calentamiento.
+  const corridosFuera = carrerasFueraDeLoMedido(entreno);
+  const medidaValida = medidos !== null && medidos >= MINUTOS_MEDIDOS_MINIMOS;
 
-  const quitar = (que: string, cambio: Cambio) => {
-    setDeshacer({ texto: que, anterior: entreno });
+  /** Un cambio que se puede deshacer desde el aviso de abajo, como quitar algo o enlazar en superserie. */
+  const conDeshacer = (aviso: string, cambio: Cambio) => {
+    setDeshacer({ texto: aviso, anterior: entreno });
     cambiar(cambio);
   };
 
@@ -280,22 +290,55 @@ export default function ApuntarGimnasio() {
             alCambiar={(fecha, hora) => cambiar((e) => cambiarEntreno(e, { fecha, hora }))}
           />
 
-          {entreno.bloques.map((bloque) => (
-            <BloqueDeEjercicio
-              key={bloque.id}
-              bloque={bloque}
-              ejercicio={porId.get(bloque.ejercicioId)}
-              elegida={elegida}
-              alElegir={setElegida}
-              cambiar={cambiar}
-              quitar={quitar}
-              asegurarVisible={asegurarVisible}
-              nuevoId={nuevoId}
-              color={color}
-            />
-          ))}
+          {entreno.bloques.map((bloque, i) => {
+            const ultimo = i === entreno.bloques.length - 1;
+            if (bloque.tipo === 'carrera') {
+              return (
+                <CarreraEnCinta
+                  key={bloque.id}
+                  bloque={bloque}
+                  nombre={nombres[i]}
+                  ultimo={ultimo}
+                  cambiar={cambiar}
+                  conDeshacer={conDeshacer}
+                />
+              );
+            }
+            const despues = entreno.bloques[i + 1];
+            return (
+              <BloqueDeEjercicio
+                key={bloque.id}
+                bloque={bloque}
+                nombre={nombres[i]}
+                ejercicios={bloque.ejercicioIds.map((id) => porId.get(id))}
+                siguiente={
+                  despues?.tipo === 'ejercicios'
+                    ? despues.ejercicioIds.map((id) => porId.get(id)?.nombre ?? id).join(' + ')
+                    : null
+                }
+                ultimo={ultimo}
+                elegida={elegida}
+                alElegir={setElegida}
+                cambiar={cambiar}
+                conDeshacer={conDeshacer}
+                asegurarVisible={asegurarVisible}
+                nuevoId={nuevoId}
+                color={color}
+              />
+            );
+          })}
 
           <Boton titulo="+ Añadir ejercicio" variante="secundario" color={color} alPulsar={() => setEligiendo(true)} />
+          <Boton
+            titulo="+ Carrera en cinta"
+            etiqueta="Añadir una carrera en cinta, como el calentamiento"
+            variante="sutil"
+            color={color}
+            alPulsar={() => {
+              const id = nuevoId();
+              cambiar((e) => anadirCarrera(empezarAhoraSiVacio(e, new Date()), id));
+            }}
+          />
 
           <View style={estilos.seccion}>
             <Text style={[estilos.titulo, { color: paleta.texto }]}>Duración</Text>
@@ -303,7 +346,7 @@ export default function ApuntarGimnasio() {
               <TextInput
                 accessibilityLabel="Duración en minutos"
                 value={entreno.minutos}
-                placeholder={medidos !== null && medidos >= MINUTOS_MEDIDOS_MINIMOS ? String(medidos) : ''}
+                placeholder={medidaValida ? String(medidos + corridosFuera) : ''}
                 placeholderTextColor={paleta.textoTenue}
                 onChangeText={(minutos) => cambiar((e) => cambiarEntreno(e, { minutos }))}
                 keyboardType="number-pad"
@@ -316,14 +359,19 @@ export default function ApuntarGimnasio() {
                 ? 'La que has escrito.'
                 : medidos === null
                   ? 'Escríbela, o marca las series como hechas mientras entrenas y se medirá sola.'
-                  : medidos < MINUTOS_MEDIDOS_MINIMOS
+                  : !medidaValida
                     ? `Las series marcadas solo cubren ${textoDeMinutos(medidos)}: escribe la duración.`
-                    : `${textoDeMinutos(medidos)} entre la primera serie hecha y la última. Si fue más, escríbelo.`}
+                    : corridosFuera > 0
+                      ? `${textoDeMinutos(medidos + corridosFuera)}: ${corridosFuera} de carrera en cinta y ${medidos} entre la primera serie hecha y la última. Si fue más, escríbelo.`
+                      : `${textoDeMinutos(medidos)} entre la primera serie hecha y la última. Si fue más, escríbelo.`}
             </Text>
           </View>
 
           <View style={estilos.seccion}>
             <Text style={[estilos.titulo, { color: paleta.texto }]}>Esfuerzo</Text>
+            <View style={estilos.mascota}>
+              <Mascota disciplina="gimnasio" esfuerzo={entreno.esfuerzo} tamano={96} />
+            </View>
             <SelectorDeEsfuerzo
               valor={entreno.esfuerzo}
               color={color}
@@ -408,6 +456,9 @@ const estilos = StyleSheet.create({
   },
   seccion: {
     gap: espacio[2],
+  },
+  mascota: {
+    alignItems: 'center',
   },
   titulo: {
     fontSize: texto.l,

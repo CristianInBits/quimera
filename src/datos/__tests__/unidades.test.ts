@@ -1,4 +1,28 @@
-import { gramosATexto, msATexto, textoAGramos, textoAMs } from '@/datos/unidades';
+import { gramosATexto, metrosATexto, msATexto, textoAGramos, textoAMetros, textoAMs } from '@/datos/unidades';
+
+describe('La distancia', () => {
+  it.each([
+    ['2,35', 2350],
+    ['2.35', 2350],
+    ['5', 5000],
+    ['0,4', 400],
+    ['1000', 1_000_000],
+  ])('«%s» km son %i m', (texto, metros) => {
+    expect(textoAMetros(texto)).toBe(metros);
+  });
+
+  it.each(['', '2 km', '2,3456', '-1', '2,'])('«%s» no es una distancia', (texto) => {
+    expect(textoAMetros(texto)).toBeNull();
+  });
+
+  it('todas las distancias hasta 100 km, metro a metro, van y vuelven sin cambiar', () => {
+    for (let metros = 1; metros <= 100_000; metros++) {
+      if (textoAMetros(metrosATexto(metros)) !== metros) {
+        throw new Error(`${metros} m no vuelven igual: ${metrosATexto(metros)}`);
+      }
+    }
+  });
+});
 
 describe('El peso', () => {
   it.each([
