@@ -1,6 +1,6 @@
 import type { Medida } from '@/datos/catalogo';
 import type { Ejercicio } from '@/datos/ejercicios';
-import type { Bloque, Entreno, Serie } from '@/datos/entrenos';
+import { huellaDelEntreno, type Bloque, type Entreno, type EntrenoGuardado, type Serie } from '@/datos/entrenos';
 import { esFecha, fechaLocal, horaLocal } from '@/datos/fechas';
 import { gramosATexto, metrosATexto, textoAGramos, textoAMetros } from '@/datos/unidades';
 
@@ -71,6 +71,18 @@ export type EntrenoEnEdicion = {
   bloques: BloqueEnEdicion[];
   /** Los minutos tecleados, o '' si no se han tecleado. */
   minutos: string;
+  /**
+   * Al corregir, la duración guardada y los minutos con que se enseña. Si los
+   * minutos no se tocan, se guarda la de antes con sus milisegundos, porque el
+   * editor solo escribe minutos enteros. Null en un entreno nuevo.
+   */
+  duracionLeida: { minutos: string; ms: number } | null;
+  /**
+   * Al corregir, la huella del entreno tal como se leyó. Si al guardar su sello
+   * ha cambiado pero lo apuntado sigue igual, como después de borrarlo y
+   * deshacer el borrado, la corrección se guarda encima. Null en uno nuevo.
+   */
+  huellaLeida: string | null;
   esfuerzo: number | null;
   notas: string;
 };
@@ -81,6 +93,15 @@ export type CampoDeCarrera = 'kilometros' | 'minutos';
 
 /** Dónde se guarda el entreno de gimnasio a medias, en este móvil. */
 export const CLAVE_DEL_BORRADOR = 'local.borrador.gimnasio';
+
+/**
+ * Dónde se guarda, en este móvil, la corrección a medias de un entreno ya
+ * guardado: una por entreno, aparte del entreno nuevo a medias. Sin guiones,
+ * para que quepa en la clave de un ajuste con «.ilegible» detrás.
+ */
+export function claveDeCorreccion(id: string): string {
+  return `local.correccion.${id.replace(/-/g, '')}`;
+}
 
 /** Si hay algo que guardar como borrador; uno recién abierto no lo tiene. */
 export function tieneAlgo(e: EntrenoEnEdicion): boolean {
@@ -127,6 +148,8 @@ export function entrenoNuevo(nuevoId: () => string, ahora: Date): EntrenoEnEdici
     hora: horaLocal(ahora),
     bloques: [],
     minutos: '',
+    duracionLeida: null,
+    huellaLeida: null,
     esfuerzo: null,
     notas: '',
   };
@@ -585,6 +608,11 @@ export function validar(
     );
     const despues = ultimo ? null : leerDescanso(bloque.descansoDespues, `${delBloque}: el descanso antes del siguiente`, errores);
 
+    // El orden es el sitio del ejercicio en la vuelta, aunque en una vuelta falte
+    // la serie de antes. Un ejercicio sin nada en todo el bloque no ocupa sitio,
+    // igual que una vuelta vacía no cuenta: así, al corregir, vuelve igual.
+    const conAlgo = bloque.ejercicioIds.map((_, c) => bloque.vueltas.some((vuelta) => !serieVaciaDeDatos(vuelta[c])));
+    const ordenDe = (c: number) => conAlgo.slice(0, c + 1).filter(Boolean).length;
     const series: Serie[] = [];
     let ronda = 0;
     bloque.vueltas.forEach((vuelta, v) => {
@@ -597,7 +625,7 @@ export function validar(
         series.push({
           id: serie.id,
           ronda,
-          orden: c + 1,
+          orden: ordenDe(c),
           ejercicioId: bloque.ejercicioIds[c],
           ...medido,
           distanciaM: null,
@@ -634,15 +662,16 @@ export function validar(
     errores.push('El esfuerzo va del 1 al 10.');
   }
 
-  let minutos: number | null = null;
-  if (e.minutos.trim() === '') {
+  let duracionMs: number | null = null;
+  if (e.duracionLeida !== null && e.minutos === e.duracionLeida.minutos) {
+    // Al corregir, la duración que no se toca se queda como estaba, con sus milisegundos.
+    duracionMs = e.duracionLeida.ms;
+  } else if (e.minutos.trim() === '') {
     const medidos = minutosMedidos(e);
     if (medidos !== null && medidos >= MINUTOS_MEDIDOS_MINIMOS) {
-      minutos = medidos + carrerasFueraDeLoMedido(e);
-      if (minutos > 2880) {
-        errores.push('La duración va de 1 minuto a 48 horas (2880 minutos).');
-        minutos = null;
-      }
+      const total = medidos + carrerasFueraDeLoMedido(e);
+      if (total > 2880) errores.push('La duración va de 1 minuto a 48 horas (2880 minutos).');
+      else duracionMs = total * 60_000;
     } else {
       errores.push(
         medidos === null
@@ -654,19 +683,19 @@ export function validar(
     const escritos = leerEntero(e.minutos, 1, 2880);
     if (escritos === 'no se entiende') errores.push(`La duración «${e.minutos}» no se entiende: van minutos enteros.`);
     else if (escritos === 'fuera') errores.push('La duración va de 1 minuto a 48 horas (2880 minutos).');
-    else minutos = escritos;
+    else if (escritos !== null) duracionMs = escritos * 60_000;
   }
 
   // Un entreno no dura menos que lo que se corrió en él.
   const carreras = e.bloques.flatMap((bloque) => (bloque.tipo === 'carrera' ? [minutosDeCarrera(bloque)] : []));
   const corridos = carreras.reduce((suma, n) => suma + n, 0);
-  if (minutos !== null && minutos < corridos) {
+  if (duracionMs !== null && duracionMs < corridos * 60_000) {
     errores.push(
-      `La duración (${textoDeMinutos(minutos)}) es menor que ${carreras.length > 1 ? 'las carreras en cinta' : 'la carrera en cinta'} (${textoDeMinutos(corridos)}).`,
+      `La duración (${textoDeMinutos(Math.round(duracionMs / 60_000))}) es menor que ${carreras.length > 1 ? 'las carreras en cinta' : 'la carrera en cinta'} (${textoDeMinutos(corridos)}).`,
     );
   }
 
-  if (errores.length > 0 || e.esfuerzo === null || minutos === null) {
+  if (errores.length > 0 || e.esfuerzo === null || duracionMs === null) {
     return { errores };
   }
   return {
@@ -675,7 +704,7 @@ export function validar(
       disciplina: 'gimnasio',
       fecha: e.fecha,
       hora: e.hora,
-      duracionMs: minutos * 60_000,
+      duracionMs,
       esfuerzo: e.esfuerzo,
       notas: e.notas.trim() === '' ? null : e.notas,
       bloques,
@@ -795,6 +824,15 @@ export function leerBorrador(valor: unknown): EntrenoEnEdicion | null {
   if (!(b.hora === null || (esTexto(b.hora) && /^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(b.hora)))) return null;
   if (!esTexto(b.minutos) || !esTexto(b.notas) || !esNumeroONulo(b.esfuerzo)) return null;
   if (!Array.isArray(b.bloques)) return null;
+  // Los borradores de antes de corregir no llevan ni la duración ni la huella leídas.
+  let duracionLeida: EntrenoEnEdicion['duracionLeida'] = null;
+  if (b.duracionLeida !== undefined && b.duracionLeida !== null) {
+    const d = b.duracionLeida;
+    if (!esObjeto(d) || !esTexto(d.minutos) || typeof d.ms !== 'number' || !Number.isInteger(d.ms) || d.ms <= 0) return null;
+    duracionLeida = { minutos: d.minutos, ms: d.ms };
+  }
+  if (b.huellaLeida !== undefined && b.huellaLeida !== null && !esTexto(b.huellaLeida)) return null;
+  const huellaLeida = esTexto(b.huellaLeida) ? b.huellaLeida : null;
   const bloques: BloqueEnEdicion[] = [];
   for (const crudo of b.bloques) {
     const bloque = b.formato === 1 ? bloqueDeLaForma1(crudo) : bloqueDeLaForma2(crudo);
@@ -809,8 +847,158 @@ export function leerBorrador(valor: unknown): EntrenoEnEdicion | null {
     hora: b.hora,
     bloques,
     minutos: b.minutos,
+    duracionLeida,
+    huellaLeida,
     esfuerzo: b.esfuerzo,
     notas: b.notas,
+  };
+}
+
+/**
+ * El mismo entreno, para guardarlo aparte, como uno nuevo: con identificadores
+ * nuevos, el suyo y los de todos sus bloques y series, porque los de antes
+ * siguen siendo del otro en la base, aunque esté borrado.
+ */
+export function comoEntrenoNuevo(e: EntrenoEnEdicion, nuevoId: () => string): EntrenoEnEdicion {
+  return {
+    ...e,
+    id: nuevoId(),
+    selloLeido: null,
+    huellaLeida: null,
+    bloques: e.bloques.map((bloque): BloqueEnEdicion =>
+      bloque.tipo === 'carrera'
+        ? { ...bloque, id: nuevoId() }
+        : { ...bloque, id: nuevoId(), vueltas: bloque.vueltas.map((vuelta) => vuelta.map((serie) => ({ ...serie, id: nuevoId() }))) },
+    ),
+  };
+}
+
+/** Unos milisegundos como segundos escritos, '' si no hay, o null si no son segundos enteros. */
+function segundosExactos(ms: number | null): string | null {
+  if (ms === null) return '';
+  return ms % 1000 === 0 ? String(ms / 1000) : null;
+}
+
+/**
+ * Un entreno de gimnasio guardado, en el editor para corregirlo, o null si
+ * tiene algo que el editor no sabe enseñar sin perderlo al guardar: otra
+ * disciplina, medidas que el gimnasio no apunta (distancia o calorías en una
+ * serie), tiempos con fracciones de segundo, o de minuto en una carrera, o
+ * descansos que no siguen la forma del editor (el mismo descanso detrás de
+ * cada vuelta, sin parar dentro de ella y ninguno detrás de la última), o
+ * vueltas que no van seguidas desde la 1. Todo lo que guarda este editor se
+ * puede corregir. Las series no llevan su marca de hecha, que no se guarda, y
+ * los huecos de una superserie salen vacíos. Si un sitio de la vuelta no tiene
+ * ninguna serie en todo el bloque, como lo guardaba el editor del commit 2b
+ * con un ejercicio vacío en una superserie, ese ejercicio no vuelve y los
+ * órdenes de los demás se cierran: lo apuntado es lo mismo.
+ */
+export function paraCorregir(guardado: EntrenoGuardado, nuevoId: () => string): EntrenoEnEdicion | null {
+  if (guardado.disciplina !== 'gimnasio') {
+    return null;
+  }
+  const bloques: BloqueEnEdicion[] = [];
+  for (const [i, bloque] of guardado.bloques.entries()) {
+    const despues = segundosExactos(bloque.descansoMs);
+    // El editor no enseña el descanso de después del último bloque, y no lo guarda.
+    if (despues === null || (i === guardado.bloques.length - 1 && bloque.descansoMs !== null)) {
+      return null;
+    }
+    if (bloque.metrosCorridos !== null) {
+      if (bloque.series.length > 0 || (bloque.tiempoMs !== null && bloque.tiempoMs % 60_000 !== 0)) {
+        return null;
+      }
+      bloques.push({
+        tipo: 'carrera',
+        id: bloque.id,
+        kilometros: metrosATexto(bloque.metrosCorridos),
+        minutos: bloque.tiempoMs === null ? '' : String(bloque.tiempoMs / 60_000),
+        descansoDespues: despues,
+      });
+      continue;
+    }
+    const deEjercicios = ejerciciosParaCorregir(bloque, despues, nuevoId);
+    if (deEjercicios === null) {
+      return null;
+    }
+    bloques.push(deEjercicios);
+  }
+  const minutos = String(Math.max(1, Math.round(guardado.duracionMs / 60_000)));
+  return {
+    formato: 2,
+    id: guardado.id,
+    selloLeido: guardado.modificado,
+    fecha: guardado.fecha,
+    hora: guardado.hora,
+    bloques,
+    minutos,
+    duracionLeida: { minutos, ms: guardado.duracionMs },
+    huellaLeida: huellaDelEntreno(guardado),
+    esfuerzo: guardado.esfuerzo,
+    notas: guardado.notas ?? '',
+  };
+}
+
+function ejerciciosParaCorregir(bloque: Bloque, despues: string, nuevoId: () => string): BloqueDeEjercicios | null {
+  if (bloque.tiempoMs !== null || bloque.series.length === 0) {
+    return null;
+  }
+  // Cada sitio de la vuelta es un ejercicio. Si en un sitio hay dos, no lo escribió el editor.
+  const columnas: { orden: number; ejercicioId: string }[] = [];
+  for (const serie of bloque.series) {
+    const columna = columnas.find((c) => c.orden === serie.orden);
+    if (columna === undefined) columnas.push({ orden: serie.orden, ejercicioId: serie.ejercicioId });
+    else if (columna.ejercicioId !== serie.ejercicioId) return null;
+  }
+  columnas.sort((a, b) => a.orden - b.orden);
+  const ordenadas = [...bloque.series].sort((a, b) => a.ronda - b.ronda || a.orden - b.orden);
+  const rondas = [...new Set(ordenadas.map((serie) => serie.ronda))];
+  // El editor numera las vueltas guardadas 1, 2, 3 y así, sin huecos.
+  if (!rondas.every((ronda, i) => ronda === i + 1)) {
+    return null;
+  }
+  const vueltas: SerieEnEdicion[][] = [];
+  for (const ronda of rondas) {
+    const vuelta: SerieEnEdicion[] = [];
+    for (const columna of columnas) {
+      const serie = ordenadas.find((s) => s.ronda === ronda && s.orden === columna.orden);
+      if (serie === undefined) {
+        vuelta.push(serieVacia(nuevoId()));
+        continue;
+      }
+      if (serie.distanciaM !== null || serie.calorias !== null || (serie.tiempoMs !== null && serie.tiempoMs % 1000 !== 0)) {
+        return null;
+      }
+      vuelta.push({
+        id: serie.id,
+        repeticiones: serie.repeticiones === null ? '' : String(serie.repeticiones),
+        peso: serie.pesoG === null ? '' : gramosATexto(serie.pesoG),
+        segundos: serie.tiempoMs === null ? '' : String(serie.tiempoMs / 1000),
+        hecha: null,
+      });
+    }
+    vueltas.push(vuelta);
+  }
+  // Los descansos tienen que ser los que escribe validar: el mismo detrás de cada vuelta salvo
+  // la última, 0 entre los ejercicios de una vuelta y ninguno detrás de la última.
+  const ultimaRonda = rondas[rondas.length - 1];
+  const finDeVuelta = ordenadas.find((serie, i) => serie.ronda < ultimaRonda && ordenadas[i + 1]?.ronda !== serie.ronda);
+  const entreMs = finDeVuelta?.descansoMs ?? null;
+  const entre = segundosExactos(entreMs);
+  const comoElEditor = ordenadas.every((serie, i) => {
+    const esperado = ordenadas[i + 1]?.ronda === serie.ronda ? 0 : serie.ronda < ultimaRonda ? entreMs : null;
+    return serie.descansoMs === esperado;
+  });
+  if (entre === null || !comoElEditor) {
+    return null;
+  }
+  return {
+    tipo: 'ejercicios',
+    id: bloque.id,
+    ejercicioIds: columnas.map((columna) => columna.ejercicioId),
+    vueltas,
+    descansoEntreSeries: entre,
+    descansoDespues: despues,
   };
 }
 

@@ -1,6 +1,7 @@
 import { p, type Lectura, type Transaccion } from './base';
 import type { Medida } from './catalogo';
 import { leerEjerciciosPorClave } from './ejercicios';
+import { huella } from './huella';
 import { nuevoSello } from './sellos';
 
 // Guardar, corregir, borrar y restaurar entrenos. Un entreno se guarda siempre
@@ -11,6 +12,15 @@ import { nuevoSello } from './sellos';
 // desaparecen.
 
 export type Disciplina = 'gimnasio' | 'hyrox' | 'calistenia' | 'carrera' | 'natacion';
+
+/** El nombre de cada disciplina, como se enseña. */
+export const NOMBRE_DE_DISCIPLINA: Record<Disciplina, string> = {
+  gimnasio: 'Gimnasio',
+  hyrox: 'Hyrox',
+  calistenia: 'Calistenia',
+  carrera: 'Carrera',
+  natacion: 'Natación',
+};
 
 /** Una cosa hecha en una vuelta: lo que mide su ejercicio y el descanso que vino después. */
 export type Serie = {
@@ -47,6 +57,16 @@ export type Entreno = {
 };
 
 export type EntrenoGuardado = Entreno & { modificado: number };
+
+/**
+ * La huella de lo apuntado en un entreno guardado, sin su sello. Dos lecturas
+ * con la misma huella tienen lo mismo aunque el sello haya cambiado entre
+ * medias, como pasa al borrar un entreno y deshacer el borrado.
+ */
+export function huellaDelEntreno(entreno: EntrenoGuardado): string {
+  const { modificado: _, ...apuntado } = entreno;
+  return huella(JSON.stringify(apuntado));
+}
 
 /** El entreno cambió, o se borró, desde que el editor lo leyó. */
 export class EntrenoCambiado extends Error {

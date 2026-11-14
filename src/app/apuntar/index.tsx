@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Mascota } from '@/componentes/Mascota';
 import { leerAjuste } from '@/datos/ajustes';
-import type { Disciplina } from '@/datos/entrenos';
+import { NOMBRE_DE_DISCIPLINA, type Disciplina } from '@/datos/entrenos';
 import { usePuerta } from '@/datos/usarBase';
 import { CLAVE_DEL_BORRADOR, leerBorrador } from '@/gimnasio/editor';
 import { usePaleta } from '@/tema/colores';
@@ -13,12 +13,12 @@ import { espacio, radio, texto, toqueMinimo } from '@/tema/medidas';
 
 // Qué entreno apuntar. Las disciplinas llegan de una en una: por ahora solo
 // el gimnasio; las demás salen para que se vea lo que viene.
-const DISCIPLINAS: { id: Disciplina; nombre: string; lista: boolean }[] = [
-  { id: 'gimnasio', nombre: 'Gimnasio', lista: true },
-  { id: 'hyrox', nombre: 'Hyrox', lista: false },
-  { id: 'calistenia', nombre: 'Calistenia', lista: false },
-  { id: 'carrera', nombre: 'Carrera', lista: false },
-  { id: 'natacion', nombre: 'Natación', lista: false },
+const DISCIPLINAS: { id: Disciplina; lista: boolean }[] = [
+  { id: 'gimnasio', lista: true },
+  { id: 'hyrox', lista: false },
+  { id: 'calistenia', lista: false },
+  { id: 'carrera', lista: false },
+  { id: 'natacion', lista: false },
 ];
 
 export default function Apuntar() {
@@ -51,12 +51,13 @@ export default function Apuntar() {
       <Stack.Screen options={{ headerShown: true, title: 'Apuntar un entreno' }} />
       {DISCIPLINAS.map((d) => {
         const color = paleta.disciplina[d.id];
+        const nombre = NOMBRE_DE_DISCIPLINA[d.id];
         return (
           <Pressable
             key={d.id}
             accessibilityRole="button"
             accessibilityState={{ disabled: !d.lista }}
-            accessibilityLabel={!d.lista ? `${d.nombre}, pronto` : aMedias ? `${d.nombre}, tienes uno a medias` : d.nombre}
+            accessibilityLabel={!d.lista ? `${nombre}, pronto` : aMedias ? `${nombre}, tienes uno a medias` : nombre}
             disabled={!d.lista}
             onPress={() => router.navigate('/apuntar/gimnasio')}
             style={({ pressed }) => [
@@ -68,7 +69,7 @@ export default function Apuntar() {
             <View style={[estilos.marca, { backgroundColor: d.lista ? color : paleta.borde }]} />
             {d.lista && <Mascota disciplina={d.id} tamano={56} />}
             <View style={estilos.textos}>
-              <Text style={[estilos.nombre, { color: d.lista ? paleta.texto : paleta.textoTenue }]}>{d.nombre}</Text>
+              <Text style={[estilos.nombre, { color: d.lista ? paleta.texto : paleta.textoTenue }]}>{nombre}</Text>
               {!d.lista && <Text style={[estilos.nota, { color: paleta.textoTenue }]}>Pronto</Text>}
               {d.lista && aMedias && (
                 <Text style={[estilos.nota, { color: paleta.texto }]}>Tienes uno a medias: sigue donde lo dejaste</Text>

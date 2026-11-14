@@ -300,6 +300,8 @@ describe('El editor de gimnasio', () => {
         },
       ],
       minutos: '45',
+      duracionLeida: null,
+      huellaLeida: null,
       esfuerzo: 7,
       notas: 'Bien',
     });

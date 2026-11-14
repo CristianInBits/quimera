@@ -1,4 +1,4 @@
-import { Stack, router } from 'expo-router';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
 import {
   AccessibilityInfo,
@@ -22,7 +22,7 @@ import { useHoy } from '@/componentes/useHoy';
 import { leerAjuste, ponerAjusteEn, quitarAjusteLocalEn } from '@/datos/ajustes';
 import { GRUPOS_DEL_GIMNASIO } from '@/datos/catalogo';
 import { leerEjercicios, leerEjerciciosPorClave, type Ejercicio } from '@/datos/ejercicios';
-import { EntrenoCambiado, EntrenoNoValido, guardarEntrenoEn } from '@/datos/entrenos';
+import { EntrenoCambiado, EntrenoNoValido, guardarEntrenoEn, huellaDelEntreno, leerEntreno } from '@/datos/entrenos';
 import { nuevoId } from '@/datos/movil';
 import { usePuerta } from '@/datos/usarBase';
 import { BloqueDeEjercicio } from '@/gimnasio/BloqueDeEjercicio';
@@ -34,11 +34,14 @@ import {
   anadirEjercicio,
   cambiarEntreno,
   carrerasFueraDeLoMedido,
+  claveDeCorreccion,
+  comoEntrenoNuevo,
   empezarAhoraSiVacio,
   entrenoNuevo,
   leerBorrador,
   minutosMedidos,
   nombresDeLosBloques,
+  paraCorregir,
   textoDeMinutos,
   tieneAlgo,
   validar,
@@ -48,17 +51,20 @@ import { SelectorDeEjercicio } from '@/gimnasio/SelectorDeEjercicio';
 import { usePaleta } from '@/tema/colores';
 import { datos, espacio, radio, texto, toqueMinimo } from '@/tema/medidas';
 
-/** Dónde se aparta un borrador que esta versión no sabe leer, para no perderlo. */
-const CLAVE_DEL_ILEGIBLE = `${CLAVE_DEL_BORRADOR}.ilegible`;
-
 type Cambio = (e: EntrenoEnEdicion) => EntrenoEnEdicion;
 
 /**
- * Apuntar un entreno de gimnasio, en directo o después. Todo lo que se escribe
- * se guarda solo como borrador en este móvil, así que cerrar la app no pierde
- * nada: al volver, el entreno sigue donde estaba.
+ * Apuntar un entreno de gimnasio, en directo o después, o corregir uno ya
+ * guardado, con el parámetro «corregir». Todo lo que se escribe se guarda solo
+ * como borrador en este móvil, así que cerrar la app no pierde nada: al volver,
+ * el entreno sigue donde estaba. Cada corrección tiene su propio borrador,
+ * aparte del entreno nuevo a medias.
  */
 export default function ApuntarGimnasio() {
+  const { corregir } = useLocalSearchParams<{ corregir?: string }>();
+  const corrigiendo = corregir !== undefined;
+  // El borrador de esta pantalla, y dónde se aparta si esta versión no lo sabe leer.
+  const clave = corregir === undefined ? CLAVE_DEL_BORRADOR : claveDeCorreccion(corregir);
   const puerta = usePuerta();
   const paleta = usePaleta();
   const hoy = useHoy();
@@ -76,6 +82,10 @@ export default function ApuntarGimnasio() {
   const [sinBorrador, setSinBorrador] = useState(false);
   const [apartado, setApartado] = useState(false);
   const [deshacer, setDeshacer] = useState<{ texto: string; anterior: EntrenoEnEdicion } | null>(null);
+  // Al corregir, si el entreno cambió o se borró mientras tanto, se puede guardar como uno nuevo.
+  const [cambiado, setCambiado] = useState(false);
+  // El borrador no se escribe hasta el primer cambio: abrir una corrección y salir sin tocar nada no deja borrador.
+  const tocado = useRef(false);
   // Después de guardar o descartar, el borrador no se vuelve a escribir.
   const cerrado = useRef(false);
   // Lo último que falta por guardar como borrador, y lo último que se ve.
@@ -88,14 +98,22 @@ export default function ApuntarGimnasio() {
     let vivo = true;
     puerta
       .leer(async (l) => {
-        const valor = await leerAjuste(l, CLAVE_DEL_BORRADOR);
-        const borrador = leerBorrador(valor);
-        const ids = borrador?.bloques.flatMap((bloque) => (bloque.tipo === 'ejercicios' ? bloque.ejercicioIds : [])) ?? [];
+        const valor = await leerAjuste(l, clave);
+        const leidoDelBorrador = leerBorrador(valor);
+        // El borrador de una corrección solo vale para su entreno.
+        const borrador =
+          leidoDelBorrador !== null && (corregir === undefined || leidoDelBorrador.id === corregir) ? leidoDelBorrador : null;
+        const guardado = corregir !== undefined && borrador === null ? await leerEntreno(l, corregir) : null;
+        const aCorregir = guardado === null ? null : paraCorregir(guardado, nuevoId);
+        const inicial = borrador ?? aCorregir;
+        const ids = inicial?.bloques.flatMap((bloque) => (bloque.tipo === 'ejercicios' ? bloque.ejercicioIds : [])) ?? [];
         return {
           elegibles: await leerEjercicios(l),
           porClave: await leerEjerciciosPorClave(l, ids),
-          borrador,
-          ilegible: valor !== undefined && borrador === null ? valor : undefined,
+          inicial,
+          borrado: corregir !== undefined && borrador === null && guardado === null,
+          noSeCorrige: guardado !== null && aCorregir === null,
+          ilegible: valor !== undefined && leidoDelBorrador === null ? valor : undefined,
         };
       })
       .then(async (leido) => {
@@ -103,14 +121,21 @@ export default function ApuntarGimnasio() {
           // Uno que no se puede leer, quizá de otra versión, se aparta en vez de pisarlo.
           const ilegible = leido.ilegible;
           await puerta.escribir(async (tx) => {
-            await ponerAjusteEn(tx, CLAVE_DEL_ILEGIBLE, ilegible, Date.now());
-            await quitarAjusteLocalEn(tx, CLAVE_DEL_BORRADOR);
+            await ponerAjusteEn(tx, `${clave}.ilegible`, ilegible, Date.now());
+            await quitarAjusteLocalEn(tx, clave);
           });
         }
-        if (vivo) {
+        if (!vivo) return;
+        if (leido.borrado) {
+          setErrores(['Este entreno ya no está: se ha borrado.']);
+        } else if (leido.noSeCorrige) {
+          setErrores([
+            'Este entreno tiene datos que el editor de gimnasio todavía no sabe enseñar, y al corregirlo aquí se perderían.',
+          ]);
+        } else {
           setElegibles(leido.elegibles);
           setRetirados([...leido.porClave.values()]);
-          setEntreno(leido.borrador ?? entrenoNuevo(nuevoId, new Date()));
+          setEntreno(leido.inicial ?? entrenoNuevo(nuevoId, new Date()));
           setApartado(leido.ilegible !== undefined);
         }
       })
@@ -118,7 +143,7 @@ export default function ApuntarGimnasio() {
     return () => {
       vivo = false;
     };
-  }, [puerta]);
+  }, [puerta, clave, corregir]);
 
   /**
    * Escribe el borrador, pero solo el suyo: si el que hay guardado es de otro
@@ -128,14 +153,14 @@ export default function ApuntarGimnasio() {
     (e: EntrenoEnEdicion) =>
       puerta
         .escribir(async (tx) => {
-          const guardado = leerBorrador(await leerAjuste(tx, CLAVE_DEL_BORRADOR));
+          const guardado = leerBorrador(await leerAjuste(tx, clave));
           if (guardado !== null && guardado.id !== e.id) return;
-          if (tieneAlgo(e)) await ponerAjusteEn(tx, CLAVE_DEL_BORRADOR, e, Date.now());
-          else if (guardado !== null) await quitarAjusteLocalEn(tx, CLAVE_DEL_BORRADOR);
+          if (tieneAlgo(e)) await ponerAjusteEn(tx, clave, e, Date.now());
+          else if (guardado !== null) await quitarAjusteLocalEn(tx, clave);
         })
         .then(() => setSinBorrador(false))
         .catch(() => setSinBorrador(true)),
-    [puerta],
+    [puerta, clave],
   );
 
   // El borrador se escribe un momento después del último cambio, y también al
@@ -143,7 +168,7 @@ export default function ApuntarGimnasio() {
   useEffect(() => {
     if (entreno === null) return;
     ultimo.current = entreno;
-    if (cerrado.current) return;
+    if (cerrado.current || !tocado.current) return;
     pendiente.current = entreno;
     const temporizador = setTimeout(() => {
       const e = pendiente.current;
@@ -166,6 +191,7 @@ export default function ApuntarGimnasio() {
   }, [errores]);
 
   const cambiar = useCallback((cambio: Cambio) => {
+    tocado.current = true;
     setEntreno((e) => (e === null ? e : cambio(e)));
     setErrores([]);
   }, []);
@@ -183,10 +209,12 @@ export default function ApuntarGimnasio() {
     [margenes.bottom],
   );
 
+  const titulo = corrigiendo ? 'Corregir entreno' : 'Gimnasio';
+
   if (entreno === null || elegibles === null) {
     return (
       <View style={[estilos.pantalla, { backgroundColor: paleta.fondo }]}>
-        <Stack.Screen options={{ headerShown: true, title: 'Gimnasio' }} />
+        <Stack.Screen options={{ headerShown: true, title: titulo }} />
         {errores.map((error, i) => (
           <Text key={i} style={[estilos.error, { color: paleta.error }]}>
             {error}
@@ -209,8 +237,14 @@ export default function ApuntarGimnasio() {
     cambiar(cambio);
   };
 
-  const guardar = async () => {
-    const resultado = validar(entreno, porId, hoy);
+  /**
+   * Guarda el entreno y quita su borrador. Al corregir, «comoNuevo» lo guarda
+   * como un entreno aparte, con otro identificador: es la salida cuando el
+   * guardado cambió o se borró mientras se corregía.
+   */
+  const guardar = async (comoNuevo = false) => {
+    const aGuardar = comoNuevo ? comoEntrenoNuevo(entreno, nuevoId) : entreno;
+    const resultado = validar(aGuardar, porId, hoy);
     if (resultado.errores) {
       setErrores(resultado.errores);
       return;
@@ -218,54 +252,72 @@ export default function ApuntarGimnasio() {
     cerrado.current = true;
     pendiente.current = null;
     setGuardando(true);
+    setCambiado(false);
     try {
       await puerta.escribir(async (tx) => {
-        await guardarEntrenoEn(tx, resultado.entreno, { ahora: Date.now(), selloLeido: entreno.selloLeido });
-        await quitarAjusteLocalEn(tx, CLAVE_DEL_BORRADOR);
+        let selloLeido = aGuardar.selloLeido;
+        if (aGuardar.huellaLeida !== null) {
+          // Borrar el entreno y deshacer el borrado le cambia el sello, pero no lo
+          // apuntado: si sigue siendo lo que se leyó, la corrección va encima.
+          const ahora = await leerEntreno(tx, aGuardar.id);
+          if (ahora !== null && huellaDelEntreno(ahora) === aGuardar.huellaLeida) selloLeido = ahora.modificado;
+        }
+        await guardarEntrenoEn(tx, resultado.entreno, { ahora: Date.now(), selloLeido });
+        await quitarAjusteLocalEn(tx, clave);
       });
-      router.dismissTo('/');
+      if (!corrigiendo) router.dismissTo('/');
+      else if (comoNuevo) router.dismissTo('/historial');
+      else router.back();
     } catch (error) {
       cerrado.current = false;
       setGuardando(false);
       // Lo tecleado justo antes de Guardar, o mientras se guardaba, vuelve al borrador.
       if (ultimo.current !== null) void guardarBorrador(ultimo.current);
-      setErrores([
-        error instanceof EntrenoNoValido
-          ? error.problemas.join(' ')
-          : error instanceof EntrenoCambiado
-            ? 'Este entreno ya estaba guardado. Descarta este borrador y, si hace falta, corrige el guardado.'
-            : `No se pudo guardar el entreno. Lo apuntado sigue aquí. (${String(error)})`,
-      ]);
+      let mensaje = `No se pudo guardar el entreno. Lo apuntado sigue aquí. (${String(error)})`;
+      if (error instanceof EntrenoNoValido) {
+        mensaje = error.problemas.join(' ');
+      } else if (error instanceof EntrenoCambiado && !corrigiendo) {
+        mensaje = 'Este entreno ya estaba guardado. Descarta este borrador y, si hace falta, corrige el guardado.';
+      } else if (error instanceof EntrenoCambiado) {
+        setCambiado(true);
+        const sigue = await puerta.leer((l) => leerEntreno(l, entreno.id)).catch(() => null);
+        mensaje = `Este entreno ${sigue === null ? 'se ha borrado' : 'ha cambiado'} mientras lo corregías. Puedes guardar lo tuyo como un entreno nuevo, o descartar los cambios.`;
+      }
+      setErrores([mensaje]);
     }
   };
 
   const descartar = () => {
-    Alert.alert('¿Descartar este entreno?', 'Se borra todo lo apuntado, y no se puede recuperar.', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Descartar',
-        style: 'destructive',
-        onPress: () => {
-          cerrado.current = true;
-          pendiente.current = null;
-          puerta
-            .escribir((tx) => quitarAjusteLocalEn(tx, CLAVE_DEL_BORRADOR))
-            .then(() => {
-              if (router.canGoBack()) router.back();
-              else router.replace('/');
-            })
-            .catch((error: unknown) => {
-              cerrado.current = false;
-              setErrores([`No se pudo descartar el entreno. (${String(error)})`]);
-            });
+    Alert.alert(
+      corrigiendo ? '¿Descartar los cambios?' : '¿Descartar este entreno?',
+      corrigiendo ? 'El entreno guardado se queda como estaba.' : 'Se borra todo lo apuntado, y no se puede recuperar.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Descartar',
+          style: 'destructive',
+          onPress: () => {
+            cerrado.current = true;
+            pendiente.current = null;
+            puerta
+              .escribir((tx) => quitarAjusteLocalEn(tx, clave))
+              .then(() => {
+                if (router.canGoBack()) router.back();
+                else router.replace('/');
+              })
+              .catch((error: unknown) => {
+                cerrado.current = false;
+                setErrores([`No se pudo descartar ${corrigiendo ? 'los cambios' : 'el entreno'}. (${String(error)})`]);
+              });
+          },
         },
-      },
-    ]);
+      ],
+    );
   };
 
   return (
     <View style={[estilos.pantalla, { backgroundColor: paleta.fondo }]}>
-      <Stack.Screen options={{ headerShown: true, title: 'Gimnasio' }} />
+      <Stack.Screen options={{ headerShown: true, title: titulo }} />
       <EvitarTeclado style={estilos.pantalla}>
         <ScrollView
           ref={lista}
@@ -406,14 +458,28 @@ export default function ApuntarGimnasio() {
             </Text>
           )}
 
+          {cambiado && (
+            <Boton
+              titulo="Guardarlo como un entreno nuevo"
+              variante="secundario"
+              color={color}
+              deshabilitado={guardando}
+              alPulsar={() => void guardar(true)}
+            />
+          )}
           <Boton
-            titulo={guardando ? 'Guardando' : 'Guardar'}
+            titulo={guardando ? 'Guardando' : corrigiendo ? 'Guardar los cambios' : 'Guardar'}
             variante="principal"
             color={color}
             deshabilitado={guardando}
             alPulsar={() => void guardar()}
           />
-          <Boton titulo="Descartar este entreno" variante="sutil" color={paleta.error} alPulsar={descartar} />
+          <Boton
+            titulo={corrigiendo ? 'Descartar los cambios' : 'Descartar este entreno'}
+            variante="sutil"
+            color={paleta.error}
+            alPulsar={descartar}
+          />
         </ScrollView>
       </EvitarTeclado>
 

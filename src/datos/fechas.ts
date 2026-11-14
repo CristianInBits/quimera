@@ -69,12 +69,66 @@ export function deFecha(fecha: string): Date {
 
 const DIAS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+const MESES_ENTEROS = [
+  'enero',
+  'febrero',
+  'marzo',
+  'abril',
+  'mayo',
+  'junio',
+  'julio',
+  'agosto',
+  'septiembre',
+  'octubre',
+  'noviembre',
+  'diciembre',
+];
+
+/** La fecha n días después de otra, o antes con n negativo, contando días en el calendario. */
+export function sumarDias(fecha: string, n: number): string {
+  const [a, m, d] = partes(fecha);
+  const dia = new Date(Date.UTC(a, m - 1, d + n));
+  return `${dia.getUTCFullYear()}-${dos(dia.getUTCMonth() + 1)}-${dos(dia.getUTCDate())}`;
+}
 
 /** La fecha anterior a otra, contando días en el calendario. */
 export function diaAnterior(fecha: string): string {
+  return sumarDias(fecha, -1);
+}
+
+/**
+ * Una semana dicha para la persona, por su lunes: «Esta semana», «La semana
+ * pasada», «Del 2 al 8 de noviembre» o «Del 27 de octubre al 2 de
+ * noviembre». Si no es del año de hoy, lleva el año: «Del 29 de diciembre de
+ * 2025 al 4 de enero de 2026».
+ */
+export function textoDeSemana(lunes: string, hoy: string): string {
+  const esta = lunesDe(hoy);
+  if (lunes === esta) return 'Esta semana';
+  if (lunes === sumarDias(esta, -7)) return 'La semana pasada';
+  const [a1, m1, d1] = partes(lunes);
+  const [a2, m2, d2] = partes(sumarDias(lunes, 6));
+  const anoDeHoy = partes(hoy)[0];
+  if (a1 !== a2) {
+    return `Del ${d1} de ${MESES_ENTEROS[m1 - 1]} de ${a1} al ${d2} de ${MESES_ENTEROS[m2 - 1]} de ${a2}`;
+  }
+  const fin = `${d2} de ${MESES_ENTEROS[m2 - 1]}${a2 === anoDeHoy ? '' : ` de ${a2}`}`;
+  return m1 === m2 ? `Del ${d1} al ${fin}` : `Del ${d1} de ${MESES_ENTEROS[m1 - 1]} al ${fin}`;
+}
+
+const DIAS_ENTEROS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+
+/**
+ * Una fecha guardada para decirla entera dentro de una frase, como la lee bien
+ * un lector de pantalla: «hoy», «ayer», «sábado 7 de noviembre» o, si es de
+ * otro año, «sábado 7 de noviembre de 2025».
+ */
+export function fechaEnFrase(fecha: string, hoy: string): string {
+  if (fecha === hoy) return 'hoy';
+  if (fecha === diaAnterior(hoy)) return 'ayer';
   const [a, m, d] = partes(fecha);
-  const dia = new Date(Date.UTC(a, m - 1, d - 1));
-  return `${dia.getUTCFullYear()}-${dos(dia.getUTCMonth() + 1)}-${dos(dia.getUTCDate())}`;
+  const texto = `${DIAS_ENTEROS[new Date(Date.UTC(a, m - 1, d)).getUTCDay()]} ${d} de ${MESES_ENTEROS[m - 1]}`;
+  return a === partes(hoy)[0] ? texto : `${texto} de ${a}`;
 }
 
 /**

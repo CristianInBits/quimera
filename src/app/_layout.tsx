@@ -6,6 +6,10 @@ import { useColorScheme } from 'react-native';
 import { prepararBaseDelMovil } from '@/datos/movil';
 import { PALETAS } from '@/tema/colores';
 
+// Las pestañas van siempre debajo: una pantalla abierta directamente, como el
+// detalle de un entreno, tiene a dónde volver.
+export const unstable_settings = { anchor: '(pestanas)' };
+
 // La raíz de toda la app. Abre la base del móvil y la prepara antes de enseñar
 // ninguna pantalla. Debajo van las pestañas, y encima de ellas se abrirán las
 // pantallas de apuntar y de ver un entreno.
