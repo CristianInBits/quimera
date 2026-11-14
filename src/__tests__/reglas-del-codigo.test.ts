@@ -67,9 +67,9 @@ describe('Las reglas del código', () => {
   });
 
   it('las funciones de datos no abren la puerta: reciben la lectura o la transacción', () => {
-    expect(
-      incumplen(/puertaDe\(/, (ruta) => ruta.startsWith('datos/') && ruta !== 'datos/base.ts' && ruta !== 'datos/preparar.ts'),
-    ).toEqual([]);
+    // La abren solo la preparación de la base y el gancho de las pantallas.
+    const abren = ['datos/base.ts', 'datos/preparar.ts', 'datos/usarBase.ts'];
+    expect(incumplen(/puertaDe\(/, (ruta) => ruta.startsWith('datos/') && !abren.includes(ruta))).toEqual([]);
   });
 
   it('fuera de datos/ nadie habla con la base directamente', () => {

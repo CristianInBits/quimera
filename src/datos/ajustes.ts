@@ -27,6 +27,17 @@ export async function leerAjuste(l: Lectura, clave: string): Promise<ValorDeAjus
   return fila === null ? undefined : (JSON.parse(fila.valor) as ValorDeAjuste);
 }
 
+/**
+ * Quita un ajuste de este móvil, como un borrador ya guardado. Los ajustes que
+ * viajan no se quitan nunca: volver a su valor por defecto es guardar null.
+ */
+export async function quitarAjusteLocalEn(tx: Transaccion, clave: string): Promise<void> {
+  if (!clave.startsWith('local.')) {
+    throw new Error(`El ajuste ${clave} viaja al exportar: no se quita, se guarda null.`);
+  }
+  await tx.runAsync('DELETE FROM ajuste WHERE clave = :clave', p({ clave }));
+}
+
 export async function ponerAjusteEn(
   tx: Transaccion,
   clave: string,

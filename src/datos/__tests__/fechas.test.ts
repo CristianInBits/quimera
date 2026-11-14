@@ -1,4 +1,4 @@
-import { deFecha, fechaLocal, horaLocal, lunesDe } from '@/datos/fechas';
+import { deFecha, diaAnterior, fechaLocal, horaDeInstante, horaLocal, lunesDe, textoDeFecha } from '@/datos/fechas';
 import { abrirBaseDePrueba } from '@/pruebas/baseDePrueba';
 
 describe('Las fechas locales', () => {
@@ -48,6 +48,19 @@ describe('Las fechas locales', () => {
     expect(() => lunesDe('2026-02-30')).toThrow(/no existe/);
     expect(() => lunesDe('2026-11-5')).toThrow(/AAAA-MM-DD/);
     expect(() => lunesDe('')).toThrow(/AAAA-MM-DD/);
+  });
+
+  it('textoDeFecha dice Hoy, Ayer o el día, y el año solo si no es el de hoy', () => {
+    expect(textoDeFecha('2026-11-15', '2026-11-15')).toBe('Hoy');
+    expect(textoDeFecha('2026-11-14', '2026-11-15')).toBe('Ayer');
+    expect(textoDeFecha('2026-11-12', '2026-11-15')).toBe('jue 12 nov');
+    expect(textoDeFecha('2026-12-31', '2027-01-01')).toBe('Ayer');
+    expect(textoDeFecha('2025-11-12', '2026-11-15')).toBe('mié 12 nov 2025');
+    expect(diaAnterior('2027-03-01')).toBe('2027-02-28');
+  });
+
+  it('horaDeInstante da la hora local de un instante', () => {
+    expect(horaDeInstante(new Date(2026, 10, 15, 7, 5).getTime())).toBe('07:05');
   });
 
   it('deFecha da la medianoche local de una fecha guardada', () => {

@@ -33,6 +33,16 @@ function partes(fecha: string): [number, number, number] {
   return [a, m, d];
 }
 
+/** Si un texto es una fecha AAAA-MM-DD que existe. */
+export function esFecha(texto: string): boolean {
+  try {
+    partes(texto);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * El lunes de la semana de una fecha. Cuenta días en el calendario, sin zona
  * horaria, y da lo mismo que la vista entreno_hecho en SQL:
@@ -46,8 +56,37 @@ export function lunesDe(fecha: string): string {
   return `${dia.getUTCFullYear()}-${dos(dia.getUTCMonth() + 1)}-${dos(dia.getUTCDate())}`;
 }
 
+/** La hora local, HH:MM, de un instante en milisegundos. */
+export function horaDeInstante(ms: number): string {
+  return horaLocal(new Date(ms));
+}
+
 /** Una fecha guardada como el Date de su medianoche local, para enseñarla. */
 export function deFecha(fecha: string): Date {
   const [a, m, d] = partes(fecha);
   return new Date(a, m - 1, d);
+}
+
+const DIAS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+/** La fecha anterior a otra, contando días en el calendario. */
+export function diaAnterior(fecha: string): string {
+  const [a, m, d] = partes(fecha);
+  const dia = new Date(Date.UTC(a, m - 1, d - 1));
+  return `${dia.getUTCFullYear()}-${dos(dia.getUTCMonth() + 1)}-${dos(dia.getUTCDate())}`;
+}
+
+/**
+ * Una fecha guardada dicha para la persona: «Hoy», «Ayer», «jue 12 nov» o, si
+ * es de otro año, «jue 12 nov 2025». Sin Intl, para que salga igual en todos
+ * los móviles.
+ */
+export function textoDeFecha(fecha: string, hoy: string): string {
+  if (fecha === hoy) return 'Hoy';
+  if (fecha === diaAnterior(hoy)) return 'Ayer';
+  const [a, m, d] = partes(fecha);
+  const dia = DIAS[new Date(Date.UTC(a, m - 1, d)).getUTCDay()];
+  const texto = `${dia} ${d} ${MESES[m - 1]}`;
+  return a === partes(hoy)[0] ? texto : `${texto} ${a}`;
 }

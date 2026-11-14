@@ -27,7 +27,10 @@ export default function Raiz() {
   return (
     <SQLiteProvider databaseName="quimera.db" onInit={prepararBaseDelMovil}>
       <ThemeProvider value={tema}>
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: paleta.fondo } }} />
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: paleta.fondo } }}>
+          {/* Sin título, el botón atrás del iPhone diría «(pestanas)». */}
+          <Stack.Screen name="(pestanas)" options={{ title: 'Inicio' }} />
+        </Stack>
         <StatusBar style="auto" />
       </ThemeProvider>
     </SQLiteProvider>

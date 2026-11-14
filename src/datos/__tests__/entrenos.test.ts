@@ -1,6 +1,7 @@
 import { puertaDe } from '@/datos/base';
 import {
   EntrenoCambiado,
+  EntrenoNoValido,
   borrarEntrenoEn,
   guardarEntrenoEn,
   leerEntreno,
@@ -141,6 +142,40 @@ describe.each(['real', 'integer'] as const)('Los entrenos, con los números como
     const actual = (await leer(gimnasio.id))!.modificado;
     await borrar(gimnasio.id, T0 + 30);
     await expect(guardar(gimnasio, T0 + 40, actual)).rejects.toThrow(EntrenoCambiado);
+  });
+
+  it('no guarda una serie con algo que su ejercicio no mide', async () => {
+    const gimnasio = gimnasioConCalentamiento(nuevoId);
+    const pressConSegundos: Entreno = {
+      ...gimnasio,
+      bloques: [{ ...gimnasio.bloques[1], series: [{ ...gimnasio.bloques[1].series[0], tiempoMs: 40_000 }] }],
+    };
+    await expect(guardar(pressConSegundos, T0, null)).rejects.toThrow(EntrenoNoValido);
+    await expect(guardar(pressConSegundos, T0, null)).rejects.toThrow('Press banca no lleva tiempo.');
+
+    const planchaConRepeticiones: Entreno = {
+      ...gimnasio,
+      bloques: [
+        {
+          ...gimnasio.bloques[1],
+          series: [{ ...gimnasio.bloques[1].series[0], ejercicioId: 'plancha', repeticiones: 10, pesoG: 20_000 }],
+        },
+      ],
+    };
+    await expect(guardar(planchaConRepeticiones, T0, null)).rejects.toThrow(
+      'Plancha no lleva repeticiones. Plancha no lleva peso.',
+    );
+
+    // La serie mala en segundo lugar, y con distancia y calorías.
+    const [buena] = gimnasio.bloques[1].series;
+    const segundaMala: Entreno = {
+      ...gimnasio,
+      bloques: [{ ...gimnasio.bloques[1], series: [buena, { ...buena, id: nuevoId(), ronda: 2, distanciaM: 100, calorias: 10 }] }],
+    };
+    await expect(guardar(segundaMala, T0, null)).rejects.toThrow(
+      'Press banca no lleva distancia. Press banca no lleva calorías.',
+    );
+    expect(db.mirar('SELECT COUNT(*) AS n FROM entreno')).toEqual([{ n: 0 }]);
   });
 
   it('si algo falla al guardar, el entreno se queda como estaba', async () => {

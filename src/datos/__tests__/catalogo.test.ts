@@ -1,4 +1,4 @@
-import { leerAjuste, ponerAjusteEn, type ValorDeAjuste } from '@/datos/ajustes';
+import { leerAjuste, ponerAjusteEn, quitarAjusteLocalEn, type ValorDeAjuste } from '@/datos/ajustes';
 import { puertaDe } from '@/datos/base';
 import {
   CATALOGO,
@@ -246,6 +246,18 @@ describe.each(['real', 'integer'] as const)('Los ajustes, con los números como 
     await poner('descanso.por_defecto_ms', null, T0 - 1000);
     expect(await leer('descanso.por_defecto_ms')).toBeNull();
     expect(crudo('descanso.por_defecto_ms')).toEqual({ valor: 'null', modificado: T0 + 1 });
+  });
+
+  it('los ajustes de este móvil se pueden quitar, y los que viajan no', async () => {
+    await poner('local.borrador.gimnasio', { formato: 1 }, T0);
+    await puertaDe(db).escribir((tx) => quitarAjusteLocalEn(tx, 'local.borrador.gimnasio'));
+    expect(await leer('local.borrador.gimnasio')).toBeUndefined();
+
+    await poner('descanso.por_defecto_ms', 90000, T0);
+    await expect(
+      puertaDe(db).escribir((tx) => quitarAjusteLocalEn(tx, 'descanso.por_defecto_ms')),
+    ).rejects.toThrow(/viaja/);
+    expect(await leer('descanso.por_defecto_ms')).toBe(90000);
   });
 
   it('un ajuste que nunca se guardó no tiene valor', async () => {

@@ -1,4 +1,6 @@
 import { p, type Lectura, type Transaccion } from './base';
+import type { Medida } from './catalogo';
+import { leerEjerciciosPorClave } from './ejercicios';
 import { nuevoSello } from './sellos';
 
 // Guardar, corregir, borrar y restaurar entrenos. Un entreno se guarda siempre
@@ -54,6 +56,51 @@ export class EntrenoCambiado extends Error {
   }
 }
 
+/** Una serie lleva algo que su ejercicio no mide. */
+export class EntrenoNoValido extends Error {
+  constructor(readonly problemas: string[]) {
+    super(`El entreno no se puede guardar: ${problemas.join(' ')}`);
+    this.name = 'EntrenoNoValido';
+  }
+}
+
+const MEDIDAS_DE_LA_SERIE: [keyof Serie, Medida, string][] = [
+  ['repeticiones', 'repeticiones', 'repeticiones'],
+  ['pesoG', 'peso', 'peso'],
+  ['tiempoMs', 'tiempo', 'tiempo'],
+  ['distanciaM', 'distancia', 'distancia'],
+  ['calorias', 'calorias', 'calorías'],
+];
+
+/**
+ * Cada serie lleva solo lo que mide su ejercicio: una plancha no lleva
+ * repeticiones ni un press banca segundos. La base no lo puede comprobar sola,
+ * porque está en dos tablas. Un ejercicio que no existe lo rechaza después la
+ * clave foránea.
+ */
+async function comprobarMedidas(tx: Transaccion, entreno: Entreno): Promise<void> {
+  const series = entreno.bloques.flatMap((bloque) => bloque.series);
+  const ejercicios = await leerEjerciciosPorClave(
+    tx,
+    series.map((serie) => serie.ejercicioId),
+  );
+  const problemas = new Set<string>();
+  for (const serie of series) {
+    const ejercicio = ejercicios.get(serie.ejercicioId);
+    if (ejercicio === undefined) {
+      continue;
+    }
+    for (const [campo, medida, nombre] of MEDIDAS_DE_LA_SERIE) {
+      if (serie[campo] !== null && !ejercicio.mide.includes(medida)) {
+        problemas.add(`${ejercicio.nombre} no lleva ${nombre}.`);
+      }
+    }
+  }
+  if (problemas.size > 0) {
+    throw new EntrenoNoValido([...problemas]);
+  }
+}
+
 export type OpcionesDeGuardar = {
   ahora: number;
   /**
@@ -86,6 +133,7 @@ export async function guardarEntrenoEn(
       throw new EntrenoCambiado(entreno.id);
     }
   }
+  await comprobarMedidas(tx, entreno);
   const modificado = nuevoSello(ahora, actual?.modificado);
   const notas = entreno.notas !== null && entreno.notas.trim().length > 0 ? entreno.notas : null;
 
