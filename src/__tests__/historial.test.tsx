@@ -1,4 +1,4 @@
-import { act, fireEvent, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, waitFor, within } from '@testing-library/react-native';
 import { renderRouter, screen, testRouter } from 'expo-router/testing-library';
 import { Alert } from 'react-native';
 
@@ -173,10 +173,12 @@ describe('El historial y el detalle de un entreno', () => {
     await guardar(deLaSemanaPasada());
     await renderRouter(RUTAS, { initialUrl: '/historial' });
 
-    expect(await screen.findByText('Esta semana')).toBeOnTheScreen();
-    expect(screen.getByText('La semana pasada')).toBeOnTheScreen();
-    expect(screen.getAllByText('1 entreno · 45 minutos')).toHaveLength(1);
-    expect(screen.getByText('1 entreno · 46 minutos')).toBeOnTheScreen();
+    // Inicio está montado debajo y también dice «Esta semana»: se mira solo el historial.
+    const historial = within(await screen.findByTestId('historial'));
+    expect(await historial.findByText('1 entreno · 45 minutos')).toBeOnTheScreen();
+    expect(historial.getByText('Esta semana')).toBeOnTheScreen();
+    expect(historial.getByText('La semana pasada')).toBeOnTheScreen();
+    expect(historial.getByText('1 entreno · 46 minutos')).toBeOnTheScreen();
     expect(screen.getByText('Press banca, Remo con barra y Plancha · 2,35 km')).toBeOnTheScreen();
     expect(
       screen.getByLabelText('Gimnasio, hoy, a las 18:30. Press banca, Remo con barra y Plancha, 2,35 km. 45 minutos, esfuerzo 7, duro'),
@@ -282,9 +284,9 @@ describe('El historial y el detalle de un entreno', () => {
     await guardar(temprano);
     await guardar(tarde);
     await renderRouter(RUTAS, { initialUrl: '/historial' });
-    expect(await screen.findByText('Esta semana')).toBeOnTheScreen();
-    expect(screen.getAllByText('Esta semana')).toHaveLength(1);
-    expect(screen.getByText('2 entrenos · 90 minutos')).toBeOnTheScreen();
+    const historial = within(await screen.findByTestId('historial'));
+    expect(await historial.findByText('2 entrenos · 90 minutos')).toBeOnTheScreen();
+    expect(historial.getAllByText('Esta semana')).toHaveLength(1);
   });
 
   it('un entreno guardado desde otra pestaña sale en el historial al volver a él', async () => {

@@ -110,6 +110,8 @@ describe('Apuntar un entreno de gimnasio', () => {
       { disciplina: 'gimnasio', duracion_ms: 2_700_000, esfuerzo: 7, ejercicio_id: 'press-banca', peso_g: 60_000, repeticiones: 8 },
     ]);
     expect(borrador()).toEqual([]);
+    // Inicio, que ya estaba montado, vuelve a leer la carga: 45 minutos por esfuerzo 7.
+    expect(await screen.findByLabelText('Carga de esta semana: 315')).toBeOnTheScreen();
   });
 
   it('dice lo que falta antes de guardar, y no guarda nada', async () => {

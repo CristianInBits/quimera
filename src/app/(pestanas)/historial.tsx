@@ -96,7 +96,7 @@ export default function Historial() {
     );
 
   return (
-    <SafeAreaView edges={['top']} style={[estilos.pantalla, { backgroundColor: paleta.fondo }]}>
+    <SafeAreaView testID="historial" edges={['top']} style={[estilos.pantalla, { backgroundColor: paleta.fondo }]}>
       <Text accessibilityRole="header" style={[estilos.titulo, { color: paleta.texto }]}>
         Historial
       </Text>

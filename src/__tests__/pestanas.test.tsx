@@ -1,4 +1,3 @@
-import { render, screen } from '@testing-library/react-native';
 import { renderRouter, screen as pantallaDelRouter, testRouter } from 'expo-router/testing-library';
 
 import Historial from '@/app/(pestanas)/historial';
@@ -8,7 +7,7 @@ import Raiz from '@/app/_layout';
 import type { BaseDePrueba } from '@/pruebas/baseDePrueba';
 import { abrirBasePreparada } from '@/pruebas/datos';
 
-// El historial lee la base: la de expo-sqlite es aquí la base de prueba, vacía.
+// Inicio y el historial leen la base: la de expo-sqlite es aquí la base de prueba, vacía.
 let mockBase: BaseDePrueba;
 jest.mock('expo-sqlite', () => ({
   SQLiteProvider: ({ children }: { children: unknown }) => children,
@@ -36,12 +35,7 @@ describe('Las pestañas', () => {
   });
   afterAll(() => mockBase.cerrar());
 
-  it('Inicio dice qué es Quimera', async () => {
-    await render(<Inicio />);
-
-    expect(screen.getByText('Quimera')).toBeOnTheScreen();
-    expect(screen.getByText('Tus entrenos, en tu móvil.')).toBeOnTheScreen();
-  });
+  // Lo que enseña Inicio se prueba en inicio.test.tsx.
 
   it('Historial avisa de que aún no hay entrenos', async () => {
     await renderRouter(RUTAS, { initialUrl: '/historial' });
