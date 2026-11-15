@@ -49,7 +49,7 @@ import {
 } from '@/gimnasio/editor';
 import { SelectorDeEjercicio } from '@/gimnasio/SelectorDeEjercicio';
 import { usePaleta } from '@/tema/colores';
-import { datos, espacio, radio, texto, toqueMinimo } from '@/tema/medidas';
+import { datos, espacio, radio, texto, titulos, toqueMinimo } from '@/tema/medidas';
 
 type Cambio = (e: EntrenoEnEdicion) => EntrenoEnEdicion;
 
@@ -71,7 +71,7 @@ export default function ApuntarGimnasio() {
   // Lo que tapan las barras del sistema: la pantalla llega hasta abajo, por
   // detrás de la barra de navegación de Android y de la raya del iPhone.
   const margenes = useSafeAreaInsets();
-  const color = paleta.disciplina.gimnasio;
+  const color = paleta.disciplina.gimnasio.texto;
   const [elegibles, setElegibles] = useState<Ejercicio[] | null>(null);
   const [retirados, setRetirados] = useState<Ejercicio[]>([]);
   const [entreno, setEntreno] = useState<EntrenoEnEdicion | null>(null);
@@ -526,10 +526,7 @@ const estilos = StyleSheet.create({
   mascota: {
     alignItems: 'center',
   },
-  titulo: {
-    fontSize: texto.l,
-    fontWeight: '700',
-  },
+  titulo: titulos.seccion,
   minutos: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -539,7 +536,7 @@ const estilos = StyleSheet.create({
     width: 120,
     minHeight: toqueMinimo,
     borderWidth: 1.5,
-    borderRadius: radio,
+    borderRadius: radio.control,
     fontSize: texto.xl,
     textAlign: 'center',
   },
@@ -552,7 +549,7 @@ const estilos = StyleSheet.create({
   notas: {
     minHeight: toqueMinimo * 2,
     borderWidth: 1.5,
-    borderRadius: radio,
+    borderRadius: radio.boton,
     padding: espacio[3],
     fontSize: texto.m,
     textAlignVertical: 'top',

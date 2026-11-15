@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import type { Bloque } from '@/datos/entrenos';
 import { metrosATexto } from '@/datos/unidades';
 import { usePaleta } from '@/tema/colores';
-import { datos, espacio, radio, texto } from '@/tema/medidas';
+import { datos, espacio, radio, texto, titulos } from '@/tema/medidas';
 
 import { resumenDeSerieGuardada, textoDelDescansoGuardado, textoDelTiempoGuardado } from './textos';
 
@@ -99,7 +99,7 @@ export function BloqueGuardado({
 const estilos = StyleSheet.create({
   bloque: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radio,
+    borderRadius: radio.tarjeta,
     padding: espacio[3],
     gap: espacio[1],
   },
@@ -108,10 +108,7 @@ const estilos = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 1,
   },
-  titulo: {
-    fontSize: texto.l,
-    fontWeight: '700',
-  },
+  titulo: titulos.bloque,
   otraVuelta: {
     marginTop: espacio[2],
   },

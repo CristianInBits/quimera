@@ -66,7 +66,7 @@ const estilos = StyleSheet.create({
     flex: 1,
     minHeight: toqueMinimo,
     borderWidth: 1.5,
-    borderRadius: radio,
+    borderRadius: radio.control,
     fontSize: texto.xl,
     textAlign: 'center',
   },

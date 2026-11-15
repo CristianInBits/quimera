@@ -6,7 +6,7 @@ import { Boton } from '@/componentes/Boton';
 import { GRUPOS, GRUPOS_DEL_GIMNASIO, type Grupo } from '@/datos/catalogo';
 import type { Ejercicio } from '@/datos/ejercicios';
 import { usePaleta } from '@/tema/colores';
-import { espacio, radio, texto, toqueMinimo } from '@/tema/medidas';
+import { espacio, radio, texto, titulos, toqueMinimo } from '@/tema/medidas';
 
 /**
  * Elegir un ejercicio de una lista, nunca escribirlo: con texto libre, el mismo
@@ -34,7 +34,7 @@ export function SelectorDeEjercicio({
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={alCerrar}>
       <SafeAreaView style={[estilos.pantalla, { backgroundColor: paleta.fondo }]}>
         <View style={estilos.cabecera}>
-          <Text accessibilityRole="header" style={[estilos.titulo, { color: paleta.texto }]}>
+          <Text accessibilityRole="header" dynamicTypeRamp="largeTitle" style={[estilos.titulo, { color: paleta.texto }]}>
             Elige un ejercicio
           </Text>
           <Boton titulo="Cerrar" alPulsar={alCerrar} variante="sutil" />
@@ -70,7 +70,7 @@ export function SelectorDeEjercicio({
             <Pressable
               accessibilityRole="button"
               onPress={() => alElegir(item)}
-              style={({ pressed }) => [estilos.ejercicio, { borderColor: paleta.borde }, pressed && { opacity: 0.6 }]}
+              style={({ pressed }) => [estilos.ejercicio, { borderColor: paleta.bordeSuave }, pressed && { opacity: 0.6 }]}
             >
               <Text style={[estilos.nombre, { color: paleta.texto }]}>{item.nombre}</Text>
               {item.porMancuerna && <Text style={[estilos.nota, { color: paleta.textoTenue }]}>Peso por mancuerna</Text>}
@@ -95,8 +95,8 @@ const estilos = StyleSheet.create({
     paddingTop: espacio[2],
   },
   titulo: {
-    fontSize: texto.xl,
-    fontWeight: '700',
+    ...titulos.pantalla,
+    flexShrink: 1,
   },
   // Sin esto, la fila de grupos se estira y se reparte el alto con la lista.
   filaDeGrupos: {
@@ -110,7 +110,7 @@ const estilos = StyleSheet.create({
   grupo: {
     minHeight: toqueMinimo,
     paddingHorizontal: espacio[4],
-    borderRadius: radio,
+    borderRadius: radio.control,
     borderWidth: 1.5,
     justifyContent: 'center',
   },

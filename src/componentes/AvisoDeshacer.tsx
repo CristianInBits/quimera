@@ -56,7 +56,7 @@ export function AvisoDeshacer({
 
 const estilos = StyleSheet.create({
   aviso: {
-    borderRadius: radio,
+    borderRadius: radio.boton,
     paddingLeft: espacio[4],
     flexDirection: 'row',
     alignItems: 'center',

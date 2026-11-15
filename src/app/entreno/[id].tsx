@@ -16,7 +16,7 @@ import { BloqueGuardado } from '@/historial/BloqueGuardado';
 import { textoDelTiempoGuardado } from '@/historial/textos';
 import { avisarDelBorrado } from '@/historial/ultimoBorrado';
 import { usePaleta } from '@/tema/colores';
-import { datos, espacio, texto } from '@/tema/medidas';
+import { datos, espacio, texto, titulos } from '@/tema/medidas';
 
 const conMayuscula = (texto: string) => texto.charAt(0).toUpperCase() + texto.slice(1);
 
@@ -112,7 +112,7 @@ export default function DetalleDelEntreno() {
               <View style={estilos.resumen}>
                 <Text
                   accessibilityLabel={`${conMayuscula(fechaEnFrase(entreno.fecha, hoy))}${entreno.hora === null ? '' : `, a las ${entreno.hora}`}`}
-                  style={[estilos.cuando, { color: paleta.texto }]}
+                  style={[datos, estilos.cuando, { color: paleta.texto }]}
                 >
                   {textoDeFecha(entreno.fecha, hoy)}
                   {entreno.hora === null ? '' : `, ${entreno.hora}`}
@@ -130,7 +130,7 @@ export default function DetalleDelEntreno() {
                 key={bloque.id}
                 bloque={bloque}
                 nombres={leido.nombres}
-                color={paleta.disciplina[entreno.disciplina]}
+                color={paleta.disciplina[entreno.disciplina].texto}
               />
             ))}
 
@@ -146,7 +146,7 @@ export default function DetalleDelEntreno() {
               <Boton
                 titulo={leido.corrigiendo ? 'Seguir corrigiendo' : 'Corregir'}
                 variante="secundario"
-                color={paleta.disciplina[entreno.disciplina]}
+                color={paleta.disciplina[entreno.disciplina].texto}
                 deshabilitado={borrando}
                 alPulsar={() => router.navigate({ pathname: '/apuntar/gimnasio', params: { corregir: entreno.id } })}
               />
@@ -192,7 +192,7 @@ const estilos = StyleSheet.create({
   },
   cuando: {
     fontSize: texto.l,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   dato: {
     fontSize: texto.xl,
@@ -203,10 +203,7 @@ const estilos = StyleSheet.create({
   notas: {
     gap: espacio[1],
   },
-  tituloDeNotas: {
-    fontSize: texto.l,
-    fontWeight: '700',
-  },
+  tituloDeNotas: titulos.seccion,
   textoDeNotas: {
     fontSize: texto.m,
   },

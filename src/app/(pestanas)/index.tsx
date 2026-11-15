@@ -12,7 +12,7 @@ import { usePuerta } from '@/datos/usarBase';
 import { textoDeMinutos } from '@/gimnasio/editor';
 import { cifra, compararConLaPasada } from '@/inicio/comparar';
 import { usePaleta } from '@/tema/colores';
-import { datos, espacio, radio, texto } from '@/tema/medidas';
+import { datos, espacio, radio, texto, titulos } from '@/tema/medidas';
 
 // La pantalla de inicio: cómo va la semana y, debajo, el botón para apuntar un
 // entreno. Las dos pestañas están montadas a la vez, así que la carga se
@@ -84,7 +84,7 @@ function EstaSemana({ carga, error }: { carga: CargaDeInicio | null; error: stri
       )}
       {carga !== null && carga.hayEntrenos && (
         <>
-          <View style={[estilos.tarjeta, { backgroundColor: paleta.fondoElevado }]}>
+          <View style={[estilos.tarjeta, { backgroundColor: paleta.superficie }]}>
             <View accessible accessibilityLabel={`Carga de esta semana: ${cifra(carga.estaSemana.carga)}`} style={estilos.carga}>
               <Text dynamicTypeRamp="largeTitle" style={[datos, estilos.cifra, { color: paleta.texto }]}>
                 {cifra(carga.estaSemana.carga)}
@@ -101,7 +101,7 @@ function EstaSemana({ carga, error }: { carga: CargaDeInicio | null; error: stri
                 accessibilityLabel={`${NOMBRE_DE_DISCIPLINA[disciplina]}, ${textoDeMinutos(minutos)}`}
                 style={estilos.disciplina}
               >
-                <View style={[estilos.marca, { backgroundColor: paleta.disciplina[disciplina] }]} />
+                <View style={[estilos.marca, { backgroundColor: paleta.disciplina[disciplina].marca }]} />
                 {/* Si con la letra grande no caben juntos, los minutos bajan debajo del nombre. */}
                 <View style={estilos.nombreYMinutos}>
                   <Text style={[estilos.nombre, { color: paleta.texto }]}>{NOMBRE_DE_DISCIPLINA[disciplina]}</Text>
@@ -134,25 +134,19 @@ const estilos = StyleSheet.create({
     alignItems: 'center',
     gap: espacio[2],
   },
-  titulo: {
-    fontSize: texto.datoXl,
-    fontWeight: '700',
-  },
+  titulo: titulos.pantalla,
   lema: {
     fontSize: texto.l,
   },
   seccion: {
     gap: espacio[2],
   },
-  tituloDeSeccion: {
-    fontSize: texto.l,
-    fontWeight: '700',
-  },
+  tituloDeSeccion: titulos.seccion,
   parrafo: {
     fontSize: texto.m,
   },
   tarjeta: {
-    borderRadius: radio,
+    borderRadius: radio.tarjeta,
     padding: espacio[4],
     gap: espacio[3],
   },

@@ -147,10 +147,16 @@ describe('Inicio', () => {
     }
   });
 
-  it('la marca de cada disciplina lleva su color', async () => {
-    await guardar(gimnasioConCalentamiento(generadorDeIds(), fechaLocal(new Date())));
+  it('la marca de cada disciplina lleva su color, no el rosa de las acciones', async () => {
+    // El hyrox, porque su marca no es ni el rosa ni su color de texto.
+    const nuevoId = generadorDeIds();
+    const hoy = fechaLocal(new Date());
+    await guardar(gimnasioConCalentamiento(nuevoId, hoy));
+    await guardar({ ...hyroxConDescansos(nuevoId), fecha: hoy });
     await renderRouter(RUTAS, { initialUrl: '/' });
-    const fila = await screen.findByLabelText('Gimnasio, 53 minutos');
-    expect(fila.children[0]).toHaveStyle({ backgroundColor: PALETAS.claro.disciplina.gimnasio });
+    const gimnasio = await screen.findByLabelText('Gimnasio, 53 minutos');
+    const hyrox = screen.getByLabelText('Hyrox, 45 minutos');
+    expect(gimnasio.children[0]).toHaveStyle({ backgroundColor: PALETAS.claro.disciplina.gimnasio.marca });
+    expect(hyrox.children[0]).toHaveStyle({ backgroundColor: PALETAS.claro.disciplina.hyrox.marca });
   });
 });

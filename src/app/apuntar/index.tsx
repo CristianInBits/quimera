@@ -9,7 +9,7 @@ import { NOMBRE_DE_DISCIPLINA, type Disciplina } from '@/datos/entrenos';
 import { usePuerta } from '@/datos/usarBase';
 import { CLAVE_DEL_BORRADOR, leerBorrador } from '@/gimnasio/editor';
 import { usePaleta } from '@/tema/colores';
-import { espacio, radio, texto, toqueMinimo } from '@/tema/medidas';
+import { espacio, radio, texto, titulos, toqueMinimo } from '@/tema/medidas';
 
 // Qué entreno apuntar. Las disciplinas llegan de una en una: por ahora solo
 // el gimnasio; las demás salen para que se vea lo que viene.
@@ -50,7 +50,7 @@ export default function Apuntar() {
     >
       <Stack.Screen options={{ headerShown: true, title: 'Apuntar un entreno' }} />
       {DISCIPLINAS.map((d) => {
-        const color = paleta.disciplina[d.id];
+        const color = paleta.disciplina[d.id].marca;
         const nombre = NOMBRE_DE_DISCIPLINA[d.id];
         return (
           <Pressable
@@ -62,11 +62,11 @@ export default function Apuntar() {
             onPress={() => router.navigate('/apuntar/gimnasio')}
             style={({ pressed }) => [
               estilos.disciplina,
-              { borderColor: d.lista ? color : paleta.borde },
+              { borderColor: d.lista ? color : paleta.bordeSuave },
               pressed && estilos.pulsado,
             ]}
           >
-            <View style={[estilos.marca, { backgroundColor: d.lista ? color : paleta.borde }]} />
+            <View style={[estilos.marca, { backgroundColor: d.lista ? color : paleta.bordeSuave }]} />
             {d.lista && <Mascota disciplina={d.id} tamano={56} />}
             <View style={estilos.textos}>
               <Text style={[estilos.nombre, { color: d.lista ? paleta.texto : paleta.textoTenue }]}>{nombre}</Text>
@@ -93,7 +93,7 @@ const estilos = StyleSheet.create({
     alignItems: 'center',
     gap: espacio[3],
     borderWidth: 1.5,
-    borderRadius: radio,
+    borderRadius: radio.tarjeta,
     paddingRight: espacio[4],
     overflow: 'hidden',
   },
@@ -105,10 +105,7 @@ const estilos = StyleSheet.create({
     flex: 1,
     paddingVertical: espacio[3],
   },
-  nombre: {
-    fontSize: texto.l,
-    fontWeight: '700',
-  },
+  nombre: titulos.bloque,
   nota: {
     fontSize: texto.s,
   },

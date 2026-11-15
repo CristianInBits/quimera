@@ -7,7 +7,7 @@ import type { Medida } from '@/datos/catalogo';
 import type { Ejercicio } from '@/datos/ejercicios';
 import { horaDeInstante } from '@/datos/fechas';
 import { usePaleta } from '@/tema/colores';
-import { datos, espacio, radio, texto, toqueMinimo } from '@/tema/medidas';
+import { datos, espacio, radio, texto, titulos, toqueMinimo } from '@/tema/medidas';
 
 import { Descansos } from './Descansos';
 import {
@@ -157,7 +157,7 @@ export function BloqueDeEjercicio({
                   accessibilityLabel={`${superserie ? `Vuelta ${v + 1}, ${nombre.ejercicios[c]}` : `Serie ${v + 1}`}: ${resumen}${serie.hecha !== null ? ', hecha' : ''}`}
                   accessibilityState={{ expanded: abierta }}
                   onPress={() => alElegir(abierta ? null : serie.id)}
-                  style={[estilos.fila, abierta && { backgroundColor: paleta.fondoElevado }]}
+                  style={[estilos.fila, abierta && { backgroundColor: paleta.superficie }]}
                 >
                   <Text style={[datos, estilos.numero, { color: paleta.textoTenue }]}>{c === 0 ? v + 1 : ''}</Text>
                   {superserie && (
@@ -183,7 +183,7 @@ export function BloqueDeEjercicio({
                     onLayout={() =>
                       panel.current?.measureInWindow((_x, y, _ancho, alto) => asegurarVisible(y, alto))
                     }
-                    style={[estilos.panel, { backgroundColor: paleta.fondoElevado }]}
+                    style={[estilos.panel, { backgroundColor: paleta.superficie }]}
                   >
                     {anterior !== undefined && !serieVaciaDeDatos(anterior) && (
                       <Boton
@@ -280,7 +280,7 @@ export function BloqueDeEjercicio({
 const estilos = StyleSheet.create({
   bloque: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radio,
+    borderRadius: radio.tarjeta,
     paddingVertical: espacio[2],
     gap: espacio[1],
   },
@@ -297,10 +297,7 @@ const estilos = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 1,
   },
-  titulo: {
-    fontSize: texto.l,
-    fontWeight: '700',
-  },
+  titulo: titulos.bloque,
   nota: {
     fontSize: texto.s,
   },

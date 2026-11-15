@@ -14,7 +14,7 @@ import { claveDeCorreccion, palabraDelEsfuerzo, textoDeMinutos } from '@/gimnasi
 import { resumenDelContenido } from '@/historial/textos';
 import { recogerElBorrado, type Borrado } from '@/historial/ultimoBorrado';
 import { usePaleta } from '@/tema/colores';
-import { datos, espacio, texto, toqueMinimo } from '@/tema/medidas';
+import { datos, espacio, texto, titulos, toqueMinimo } from '@/tema/medidas';
 
 type Semana = { lunes: string; titulo: string; minutos: number; data: EntradaDelHistorial[] };
 
@@ -97,7 +97,7 @@ export default function Historial() {
 
   return (
     <SafeAreaView testID="historial" edges={['top']} style={[estilos.pantalla, { backgroundColor: paleta.fondo }]}>
-      <Text accessibilityRole="header" style={[estilos.titulo, { color: paleta.texto }]}>
+      <Text accessibilityRole="header" dynamicTypeRamp="largeTitle" style={[estilos.titulo, { color: paleta.texto }]}>
         Historial
       </Text>
       {Platform.OS === 'ios' && aviso}
@@ -155,7 +155,7 @@ function FilaDeEntreno({ entrada, hoy }: { entrada: EntradaDelHistorial; hoy: st
       onPress={() => router.navigate({ pathname: '/entreno/[id]', params: { id: entrada.id } })}
       style={({ pressed }) => [estilos.fila, pressed && estilos.pulsado]}
     >
-      <View style={[estilos.marca, { backgroundColor: paleta.disciplina[entrada.disciplina] }]} />
+      <View style={[estilos.marca, { backgroundColor: paleta.disciplina[entrada.disciplina].marca }]} />
       <View style={estilos.textos}>
         <Text style={[estilos.cuando, { color: paleta.texto }]}>
           {nombre} · {cuando}
@@ -177,8 +177,7 @@ const estilos = StyleSheet.create({
     paddingHorizontal: espacio[4],
   },
   titulo: {
-    fontSize: texto.xl,
-    fontWeight: '700',
+    ...titulos.pantalla,
     paddingVertical: espacio[4],
   },
   error: {
@@ -205,9 +204,8 @@ const estilos = StyleSheet.create({
     paddingBottom: espacio[2],
   },
   tituloDeSemana: {
+    ...titulos.semana,
     flexShrink: 1,
-    fontSize: texto.m,
-    fontWeight: '700',
   },
   sumaDeSemana: {
     fontSize: texto.s,

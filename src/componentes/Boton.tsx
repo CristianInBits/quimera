@@ -54,7 +54,7 @@ const estilos = StyleSheet.create({
   base: {
     minHeight: toqueMinimo,
     minWidth: toqueMinimo,
-    borderRadius: radio,
+    borderRadius: radio.boton,
     paddingHorizontal: espacio[4],
     alignItems: 'center',
     justifyContent: 'center',

@@ -61,7 +61,7 @@ const estilos = StyleSheet.create({
   boton: {
     width: toqueMinimo,
     height: toqueMinimo,
-    borderRadius: radio,
+    borderRadius: radio.control,
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',

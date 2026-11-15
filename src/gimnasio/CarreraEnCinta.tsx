@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Boton } from '@/componentes/Boton';
 import { CampoConPasos } from '@/componentes/CampoConPasos';
 import { usePaleta } from '@/tema/colores';
-import { espacio, radio, texto } from '@/tema/medidas';
+import { espacio, radio, titulos } from '@/tema/medidas';
 
 import { Descansos } from './Descansos';
 import {
@@ -83,7 +83,7 @@ export function CarreraEnCinta({
 const estilos = StyleSheet.create({
   bloque: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radio,
+    borderRadius: radio.tarjeta,
     paddingVertical: espacio[2],
     gap: espacio[2],
   },
@@ -93,9 +93,8 @@ const estilos = StyleSheet.create({
     paddingLeft: espacio[3],
   },
   titulo: {
+    ...titulos.bloque,
     flex: 1,
-    fontSize: texto.l,
-    fontWeight: '700',
   },
   campos: {
     paddingHorizontal: espacio[3],

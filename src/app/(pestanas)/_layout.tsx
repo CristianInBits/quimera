@@ -19,7 +19,8 @@ export default function Pestanas() {
       tintColor={barra.etiquetaElegida}
       iconColor={{ default: barra.icono, selected: barra.iconoElegido }}
       labelStyle={{
-        default: { color: barra.etiqueta },
+        // Android usa este peso para las dos etiquetas; el iPhone pone la elegida en negrita.
+        default: { color: barra.etiqueta, fontWeight: '500' },
         selected: { color: barra.etiquetaElegida, fontWeight: '700' },
       }}
       indicatorColor={barra.indicador}
