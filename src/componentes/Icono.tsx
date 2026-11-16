@@ -13,6 +13,11 @@ const ICONOS = {
   calendario: { ios: 'calendar', android: 'calendar_today' },
   reloj: { ios: 'clock', android: 'schedule' },
   siguiente: { ios: 'chevron.right', android: 'chevron_right' },
+  menos: { ios: 'minus', android: 'remove' },
+  desplegar: { ios: 'chevron.down', android: 'expand_more' },
+  plegar: { ios: 'chevron.up', android: 'expand_less' },
+  cronometro: { ios: 'timer', android: 'timer' },
+  repetir: { ios: 'repeat', android: 'repeat' },
   // Los de cada disciplina, para su ficha.
   gimnasio: { ios: 'dumbbell', android: 'fitness_center' },
   hyrox: { ios: 'bolt', android: 'bolt' },

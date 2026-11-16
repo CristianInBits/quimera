@@ -88,7 +88,9 @@ const estilos = StyleSheet.create({
     gap: espacio[1],
   },
   valor: {
+    marginLeft: espacio[1],
     fontSize: texto.l,
+    fontWeight: '600',
   },
   // Con la letra grande, «Cambiar la hora» baja a otra línea en vez de cortarse.
   botones: {

@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { CampoConPasos } from '@/componentes/CampoConPasos';
+import { Icono } from '@/componentes/Icono';
 import { usePaleta } from '@/tema/colores';
-import { espacio, texto, toqueMinimo } from '@/tema/medidas';
+import { datos, esLetraGrande, espacio, radio, texto, toqueMinimo } from '@/tema/medidas';
 
 import { cambiarDescanso, pasoDeDescanso, textoDeSegundos, type EntrenoEnEdicion } from './editor';
 
@@ -21,7 +22,9 @@ export function textoDelDescanso(segundos: string): string | null {
 /**
  * Los descansos de un bloque, plegados en una línea que dice los que hay: son
  * opcionales, y abiertos ocuparían sitio en cada ejercicio. Se apuntan en
- * segundos, que es como se cuentan en el gimnasio.
+ * segundos, que es como se cuentan en el gimnasio. La línea y, al abrirla,
+ * sus campos van juntos sobre el fondo suave. Con la letra grande, el resumen
+ * baja debajo del título, a todo el ancho.
  */
 export function Descansos({
   bloqueId,
@@ -40,32 +43,41 @@ export function Descansos({
   cambiar: (cambio: Cambio) => void;
 }) {
   const paleta = usePaleta();
+  const { fontScale } = useWindowDimensions();
   const [abiertos, setAbiertos] = useState(false);
   if (entreSeries === null && despues === null) {
     return null;
   }
   const entre = entreSeries === null ? null : textoDelDescanso(entreSeries.valor);
   const antes = despues === null ? null : textoDelDescanso(despues);
-  const resumen =
-    [
-      entre === null || entreSeries === null ? null : `${entre} ${entreSeries.titulo.toLowerCase()}`,
-      antes === null ? null : `${antes} antes del siguiente`,
-    ]
-      .filter((parte) => parte !== null)
-      .join(' · ') || 'sin apuntar';
+  const partes = [
+    entre === null || entreSeries === null ? null : `${entre} ${entreSeries.titulo.toLowerCase()}`,
+    antes === null ? null : `${antes} antes del siguiente`,
+  ].filter((parte) => parte !== null);
+  // Sin «… || 'sin apuntar'» detrás de los ternarios: con esa forma, React
+  // Compiler se rinde y deja el componente sin compilar, sin avisar.
+  const resumen = partes.length > 0 ? partes.join(' · ') : 'sin apuntar';
+  const grande = esLetraGrande(fontScale);
+  const lineaDelResumen = (
+    <Text style={[datos, estilos.resumen, grande && estilos.resumenDebajo, { color: paleta.textoTenue }]}>
+      {resumen}
+    </Text>
+  );
 
   return (
-    <View>
+    <View testID="descansos" style={[estilos.descansos, { backgroundColor: paleta.superficieSuave }]}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Descansos de ${nombre}: ${resumen}`}
         accessibilityState={{ expanded: abiertos }}
         onPress={() => setAbiertos(!abiertos)}
-        style={({ pressed }) => [estilos.fila, pressed && estilos.pulsado]}
+        style={({ pressed }) => [estilos.fila, grande && estilos.filaPartida, pressed && estilos.pulsado]}
       >
-        <Text style={[estilos.titulo, { color: paleta.texto }]}>Descansos</Text>
-        <Text style={[estilos.resumen, { color: paleta.textoTenue }]}>{resumen}</Text>
-        <Text style={[estilos.flecha, { color: paleta.textoTenue }]}>{abiertos ? '▴' : '▾'}</Text>
+        <Icono nombre="cronometro" color={paleta.textoTenue} />
+        <Text style={[estilos.titulo, grande && estilos.tituloQueCrece, { color: paleta.texto }]}>Descansos</Text>
+        {!grande && lineaDelResumen}
+        <Icono nombre={abiertos ? 'plegar' : 'desplegar'} color={paleta.textoTenue} />
+        {grande && lineaDelResumen}
       </Pressable>
       {abiertos && (
         <View style={estilos.campos}>
@@ -96,15 +108,19 @@ export function Descansos({
 }
 
 const estilos = StyleSheet.create({
+  descansos: {
+    borderRadius: radio.control,
+  },
   fila: {
     minHeight: toqueMinimo,
     flexDirection: 'row',
     alignItems: 'center',
     gap: espacio[2],
+    paddingVertical: 6,
     paddingHorizontal: espacio[3],
   },
   titulo: {
-    fontSize: texto.m,
+    fontSize: 15,
     fontWeight: '600',
   },
   resumen: {
@@ -112,12 +128,20 @@ const estilos = StyleSheet.create({
     fontSize: texto.s,
     textAlign: 'right',
   },
-  flecha: {
-    fontSize: texto.m,
+  // Con la letra grande, la fila se parte: el resumen va detrás de la flecha y ocupa la línea de abajo entera.
+  filaPartida: {
+    flexWrap: 'wrap',
+  },
+  tituloQueCrece: {
+    flex: 1,
+  },
+  resumenDebajo: {
+    flexBasis: '100%',
+    textAlign: 'left',
   },
   campos: {
     paddingHorizontal: espacio[3],
-    paddingBottom: espacio[2],
+    paddingBottom: espacio[3],
     gap: espacio[3],
   },
   pulsado: {

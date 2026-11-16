@@ -4,7 +4,7 @@ import { Boton } from '@/componentes/Boton';
 import { CampoConPasos } from '@/componentes/CampoConPasos';
 import { Tarjeta } from '@/componentes/Tarjeta';
 import { usePaleta } from '@/tema/colores';
-import { espacio, titulos } from '@/tema/medidas';
+import { espacio, titulos, toqueMinimo } from '@/tema/medidas';
 
 import { Descansos } from './Descansos';
 import {
@@ -40,7 +40,7 @@ export function CarreraEnCinta({
 }) {
   const paleta = usePaleta();
   return (
-    <Tarjeta relleno={0} style={estilos.bloque}>
+    <Tarjeta testID="bloque" relleno={espacio[2]} style={estilos.bloque}>
       <View style={estilos.cabecera}>
         <Text accessibilityRole="header" style={[estilos.titulo, { color: paleta.texto }]}>
           Carrera en cinta
@@ -52,12 +52,13 @@ export function CarreraEnCinta({
           alPulsar={() => conDeshacer(`${nombre.alEmpezar} quitada`, (e) => quitarBloque(e, bloque.id))}
         />
       </View>
-      <View style={estilos.campos}>
+      <View testID="campos" style={estilos.campos}>
         <CampoConPasos
           etiqueta="Distancia (km)"
           etiquetaAccesible={`Distancia de ${nombre.enFrase}, en kilómetros`}
           valor={bloque.kilometros}
           decimales
+          enFila
           alCambiar={(kilometros) => cambiar((e) => cambiarCarrera(e, bloque.id, { kilometros }))}
           alDarUnPaso={(sentido) => cambiar((e) => pasoDeCarrera(e, bloque.id, 'kilometros', sentido))}
         />
@@ -65,6 +66,7 @@ export function CarreraEnCinta({
           etiqueta="Tiempo (minutos)"
           etiquetaAccesible={`Tiempo de ${nombre.enFrase}, en minutos`}
           valor={bloque.minutos}
+          enFila
           alCambiar={(minutos) => cambiar((e) => cambiarCarrera(e, bloque.id, { minutos }))}
           alDarUnPaso={(sentido) => cambiar((e) => pasoDeCarrera(e, bloque.id, 'minutos', sentido))}
         />
@@ -82,20 +84,23 @@ export function CarreraEnCinta({
 
 const estilos = StyleSheet.create({
   bloque: {
-    paddingVertical: espacio[2],
-    gap: espacio[2],
+    gap: espacio[1],
   },
   cabecera: {
+    minHeight: toqueMinimo,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingLeft: espacio[3],
+    gap: espacio[2],
   },
   titulo: {
     ...titulos.bloque,
     flex: 1,
+    marginLeft: espacio[3],
   },
   campos: {
-    paddingHorizontal: espacio[3],
-    gap: espacio[3],
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: espacio[2],
+    paddingHorizontal: espacio[2],
   },
 });

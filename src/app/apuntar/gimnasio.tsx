@@ -320,6 +320,7 @@ export default function ApuntarGimnasio() {
       <Stack.Screen options={{ headerShown: true, title: titulo }} />
       <EvitarTeclado style={estilos.pantalla}>
         <ScrollView
+          testID="editor"
           ref={lista}
           // Abajo queda sitio para la barra del sistema y, encima, para el aviso de deshacer.
           contentContainerStyle={[estilos.contenido, { paddingBottom: margenes.bottom + espacio[8] * 3 }]}
@@ -335,62 +336,71 @@ export default function ApuntarGimnasio() {
             </Text>
           )}
 
-          <CampoDeFecha
-            fecha={entreno.fecha}
-            hora={entreno.hora}
-            hoy={hoy}
-            alCambiar={(fecha, hora) => cambiar((e) => cambiarEntreno(e, { fecha, hora }))}
-          />
+          {/* El día, las tarjetas de los ejercicios y los botones para añadir van más juntos
+              que las secciones de debajo, con los huecos de la maqueta. */}
+          <View testID="lista">
+            <CampoDeFecha
+              fecha={entreno.fecha}
+              hora={entreno.hora}
+              hoy={hoy}
+              alCambiar={(fecha, hora) => cambiar((e) => cambiarEntreno(e, { fecha, hora }))}
+            />
 
-          {entreno.bloques.map((bloque, i) => {
-            const ultimo = i === entreno.bloques.length - 1;
-            if (bloque.tipo === 'carrera') {
-              return (
-                <CarreraEnCinta
-                  key={bloque.id}
-                  bloque={bloque}
-                  nombre={nombres[i]}
-                  ultimo={ultimo}
-                  cambiar={cambiar}
-                  conDeshacer={conDeshacer}
-                />
-              );
-            }
-            const despues = entreno.bloques[i + 1];
-            return (
-              <BloqueDeEjercicio
-                key={bloque.id}
-                bloque={bloque}
-                nombre={nombres[i]}
-                ejercicios={bloque.ejercicioIds.map((id) => porId.get(id))}
-                siguiente={
-                  despues?.tipo === 'ejercicios'
-                    ? despues.ejercicioIds.map((id) => porId.get(id)?.nombre ?? id).join(' + ')
-                    : null
-                }
-                ultimo={ultimo}
-                elegida={elegida}
-                alElegir={setElegida}
-                cambiar={cambiar}
-                conDeshacer={conDeshacer}
-                asegurarVisible={asegurarVisible}
-                nuevoId={nuevoId}
-                color={color}
+            {entreno.bloques.length > 0 && (
+              <View testID="bloques" style={estilos.bloques}>
+                {entreno.bloques.map((bloque, i) => {
+                  const ultimo = i === entreno.bloques.length - 1;
+                  if (bloque.tipo === 'carrera') {
+                    return (
+                      <CarreraEnCinta
+                        key={bloque.id}
+                        bloque={bloque}
+                        nombre={nombres[i]}
+                        ultimo={ultimo}
+                        cambiar={cambiar}
+                        conDeshacer={conDeshacer}
+                      />
+                    );
+                  }
+                  const despues = entreno.bloques[i + 1];
+                  return (
+                    <BloqueDeEjercicio
+                      key={bloque.id}
+                      bloque={bloque}
+                      nombre={nombres[i]}
+                      ejercicios={bloque.ejercicioIds.map((id) => porId.get(id))}
+                      siguiente={
+                        despues?.tipo === 'ejercicios'
+                          ? despues.ejercicioIds.map((id) => porId.get(id)?.nombre ?? id).join(' + ')
+                          : null
+                      }
+                      ultimo={ultimo}
+                      elegida={elegida}
+                      alElegir={setElegida}
+                      cambiar={cambiar}
+                      conDeshacer={conDeshacer}
+                      asegurarVisible={asegurarVisible}
+                      nuevoId={nuevoId}
+                    />
+                  );
+                })}
+              </View>
+            )}
+
+            <View testID="anadir" style={estilos.anadir}>
+              <Boton titulo="Añadir ejercicio" icono="mas" variante="secundario" alPulsar={() => setEligiendo(true)} />
+              <Boton
+                titulo="Carrera en cinta"
+                etiqueta="Añadir una carrera en cinta, como el calentamiento"
+                icono="mas"
+                variante="enlace"
+                alPulsar={() => {
+                  const id = nuevoId();
+                  cambiar((e) => anadirCarrera(empezarAhoraSiVacio(e, new Date()), id));
+                }}
               />
-            );
-          })}
-
-          <Boton titulo="Añadir ejercicio" icono="mas" variante="secundario" alPulsar={() => setEligiendo(true)} />
-          <Boton
-            titulo="Carrera en cinta"
-            etiqueta="Añadir una carrera en cinta, como el calentamiento"
-            icono="mas"
-            variante="enlace"
-            alPulsar={() => {
-              const id = nuevoId();
-              cambiar((e) => anadirCarrera(empezarAhoraSiVacio(e, new Date()), id));
-            }}
-          />
+            </View>
+          </View>
 
           <View style={estilos.seccion}>
             <Text style={[estilos.titulo, { color: paleta.texto }]}>Duración</Text>
@@ -515,10 +525,20 @@ const estilos = StyleSheet.create({
   },
   contenido: {
     padding: espacio[4],
+    // Arriba, más cerca de la cabecera, como en la maqueta.
+    paddingTop: espacio[2],
     gap: espacio[4],
   },
   seccion: {
     gap: espacio[2],
+  },
+  bloques: {
+    marginTop: espacio[2],
+    gap: espacio[2],
+  },
+  anadir: {
+    marginTop: espacio[3],
+    gap: espacio[1],
   },
   mascota: {
     alignItems: 'center',

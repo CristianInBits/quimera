@@ -1,6 +1,6 @@
 import { act, fireEvent, waitFor, within } from '@testing-library/react-native';
 import { renderRouter, screen, testRouter } from 'expo-router/testing-library';
-import { AccessibilityInfo, Alert } from 'react-native';
+import { AccessibilityInfo, Alert, StyleSheet } from 'react-native';
 
 import Historial from '@/app/(pestanas)/historial';
 import Pestanas from '@/app/(pestanas)/_layout';
@@ -562,6 +562,36 @@ describe('Apuntar un entreno de gimnasio', () => {
       backgroundColor: PALETAS.claro.tintePrimario,
       borderColor: PALETAS.claro.primario,
       borderWidth: 2,
+    });
+  });
+
+  it('las tarjetas van juntas, a 8 del día y entre sí, con los botones de añadir debajo, y sin ejercicios no dejan hueco', async () => {
+    await abrirElEditor();
+    expect(screen.queryByTestId('bloques')).toBeNull();
+    await anadir(null, 'Press banca');
+    await anadir('Espalda', 'Remo con barra');
+    const bloques = await screen.findByTestId('bloques');
+    expect(bloques).toHaveStyle({ marginTop: 8, gap: 8 });
+    expect(within(bloques).getAllByTestId('bloque')).toHaveLength(2);
+    // «Añadir ejercicio» y «Carrera en cinta» van juntos, como pareja, a 12 de la última tarjeta.
+    const anadirAlgo = screen.getByTestId('anadir');
+    expect(anadirAlgo).toHaveStyle({ marginTop: 12, gap: 4 });
+    expect(within(anadirAlgo).getByText('Añadir ejercicio')).toBeOnTheScreen();
+    expect(within(anadirAlgo).getByLabelText('Añadir una carrera en cinta, como el calentamiento')).toBeOnTheScreen();
+    // Los tres van juntos, en este orden, en una caja sin hueco propio: el de la pantalla, de 16, no les llega.
+    const lista = screen.getByTestId('lista');
+    expect(StyleSheet.flatten(lista.props.style)?.gap ?? 0).toBe(0);
+    const [dia, ...resto] = lista.children as (typeof lista)[];
+    expect(within(dia).getByText('Cambiar el día')).toBeOnTheScreen();
+    expect(resto.map((hijo) => hijo.props.testID)).toEqual(['bloques', 'anadir']);
+  });
+
+  it('arriba, el día va en negrita y un poco hacia dentro, y la pantalla empieza cerca de la cabecera', async () => {
+    await abrirElEditor();
+    expect(StyleSheet.flatten(screen.getByText(/^Hoy/).props.style)).toMatchObject({ fontWeight: '600', marginLeft: 4 });
+    expect(StyleSheet.flatten(screen.getByTestId('editor').props.contentContainerStyle)).toMatchObject({
+      padding: 16,
+      paddingTop: 8,
     });
   });
 });
