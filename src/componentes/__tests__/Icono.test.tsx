@@ -41,9 +41,21 @@ describe('Un icono', () => {
       );
       expect(screen.getByTestId('icono-mas', { includeHiddenElements: true }).props.size).toBe(20);
       const conTope = screen.getByTestId('icono-menos', { includeHiddenElements: true });
-      // El sistema lo multiplica por su escala: así queda en 26, como su caja.
+      // Hasta Android 13, el sistema lo multiplica por su escala y queda en 26, como su caja;
+      // desde Android 14 crece algo menos (25 a esta escala de 2) y va centrado en ella.
       expect(conTope.props.size * fontScale).toBeCloseTo(26, 9);
       expect(StyleSheet.flatten(conTope.props.style)).toMatchObject({ width: 26, height: 26 });
+    } finally {
+      android.restore();
+    }
+  });
+
+  it('en Android, la letra del icono va en medio de su caja: desde Android 14, con la letra grande, crece algo menos que ella', async () => {
+    const android = jest.replaceProperty(Platform, 'OS', 'android');
+    try {
+      await render(<Icono nombre="mas" color="#123456" tamano={20} />);
+      const icono = screen.getByTestId('icono-mas', { includeHiddenElements: true });
+      expect(StyleSheet.flatten(icono.props.style)).toMatchObject({ alignItems: 'center', justifyContent: 'center' });
     } finally {
       android.restore();
     }

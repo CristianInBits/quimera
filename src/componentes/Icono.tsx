@@ -1,5 +1,5 @@
 import { SymbolView } from 'expo-symbols';
-import { Platform, useWindowDimensions, type ColorValue } from 'react-native';
+import { Platform, StyleSheet, useWindowDimensions, type ColorValue } from 'react-native';
 
 /**
  * Los iconos de la app, cada uno con su nombre en los dos sistemas: SF Symbols
@@ -35,7 +35,10 @@ export type NombreDeIcono = keyof typeof ICONOS;
  * Crece con la letra del sistema, como el texto que acompaña. En Android,
  * expo-symbols lo dibuja como una letra de Material Symbols, que crece sola
  * pero dentro de una caja fija: la caja crece aquí con ella, para que el icono
- * no se salga ni se corte. En el iPhone, el símbolo se dibuja ya a su tamaño.
+ * no se salga ni se corte. Desde Android 14, la letra grande crece algo menos
+ * que la escala de la letra, y el icono queda algo más pequeño que su caja:
+ * por eso va centrado en ella. En el iPhone, el símbolo se dibuja ya a su
+ * tamaño.
  *
  * El peso va como texto: el iPhone lo usa, y Android usa el normal, el que ya
  * trae la barra de pestañas. Pedir en Android un peso como objeto metería esa
@@ -65,13 +68,22 @@ export function Icono({
       name={{ ios, android, web: android }}
       weight="semibold"
       tintColor={color}
-      // En Android la letra ya crece sola con el sistema, por fontScale: se le pide lo que falta
-      // para llegar a «lado», o crecería dos veces.
+      // En Android la letra ya crece sola con el sistema: se le pide el tamaño que, multiplicado
+      // por fontScale, da «lado», o crecería dos veces. Desde Android 14, con la letra grande,
+      // crece algo menos y queda algo más pequeña que su caja, centrada en ella.
       size={Platform.OS === 'android' ? (tamano * escala) / fontScale : lado}
-      style={{ width: lado, height: lado }}
+      style={[estilos.centrado, { width: lado, height: lado }]}
       accessible={false}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
     />
   );
 }
+
+const estilos = StyleSheet.create({
+  // En Android, la letra del icono, en medio de su caja.
+  centrado: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});

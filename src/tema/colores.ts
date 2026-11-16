@@ -158,6 +158,15 @@ export function sombraDeTarjetaQueSeAbre(paleta: Paleta): string | undefined {
   return paleta === PALETAS.claro ? '0 1px 2px rgba(35, 25, 31, 0.05), 0 8px 24px rgba(194, 24, 91, 0.1)' : undefined;
 }
 
+/**
+ * La sombra de cada entreno del historial, una tarjeta teñida que se toca: en
+ * claro, una muy leve que la despega del fondo; en oscuro, ninguna, porque ya
+ * la separa su borde.
+ */
+export function sombraDeEntreno(paleta: Paleta): string | undefined {
+  return paleta === PALETAS.claro ? '0 1px 2px rgba(35, 25, 31, 0.06)' : undefined;
+}
+
 /** La sombra del botón principal, del color del rosa de cada modo. */
 export function sombraDelBotonPrincipal(paleta: Paleta): string {
   return paleta === PALETAS.claro ? '0 8px 20px rgba(194, 24, 91, 0.28)' : '0 8px 24px rgba(240, 106, 168, 0.22)';

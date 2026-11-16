@@ -1,20 +1,25 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Platform, Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
+import { Platform, SectionList, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AvisoDeshacer } from '@/componentes/AvisoDeshacer';
 import { useHoy } from '@/componentes/useHoy';
 import { ponerAjusteEn } from '@/datos/ajustes';
-import { NOMBRE_DE_DISCIPLINA, restaurarEntrenoEn } from '@/datos/entrenos';
-import { fechaEnFrase, textoDeFecha, textoDeSemana } from '@/datos/fechas';
+import { restaurarEntrenoEn } from '@/datos/entrenos';
+import { textoDeSemana } from '@/datos/fechas';
 import { leerHistorial, type EntradaDelHistorial } from '@/datos/historial';
 import { usePuerta } from '@/datos/usarBase';
-import { claveDeCorreccion, palabraDelEsfuerzo, textoDeMinutos } from '@/gimnasio/editor';
-import { resumenDelContenido } from '@/historial/textos';
+import { claveDeCorreccion, textoDeMinutos } from '@/gimnasio/editor';
+import { TarjetaDeEntreno } from '@/historial/TarjetaDeEntreno';
 import { recogerElBorrado, type Borrado } from '@/historial/ultimoBorrado';
 import { usePaleta } from '@/tema/colores';
-import { datos, espacio, texto, titulos, toqueMinimo } from '@/tema/medidas';
+import { datos, espacio, texto, titulos } from '@/tema/medidas';
+
+/** El margen de los lados de la pantalla. */
+const MARGEN = espacio[5];
+/** El hueco entre dos entrenos de una semana, el mismo que hay bajo la cabecera de la semana. */
+const HUECO = 10;
 
 type Semana = { lunes: string; titulo: string; minutos: number; data: EntradaDelHistorial[] };
 
@@ -82,6 +87,7 @@ export default function Historial() {
   };
 
   const semanas = entradas === null ? [] : porSemanas(entradas, hoy);
+  const primera = semanas[0]?.lunes;
   // En Android el aviso flota abajo, cerca del pulgar, como en el editor. En el
   // iPhone la lista pasa por debajo de la barra de pestañas, que lo taparía, y
   // va arriba, en su sitio.
@@ -89,6 +95,7 @@ export default function Historial() {
     deshacer === null ? null : (
       <AvisoDeshacer
         enLinea={Platform.OS === 'ios'}
+        margen={MARGEN}
         texto={deshacer.aviso}
         alDeshacer={() => restaurar(deshacer)}
         alAcabar={() => setDeshacer(null)}
@@ -116,16 +123,24 @@ export default function Historial() {
           stickySectionHeadersEnabled={false}
           contentContainerStyle={estilos.lista}
           renderSectionHeader={({ section }) => (
-            <View style={estilos.semana}>
+            // Si el título y la suma no caben en una línea, la suma baja debajo del título.
+            <View testID="semana" style={[estilos.semana, section.lunes !== primera && estilos.otraSemana]}>
               <Text accessibilityRole="header" style={[estilos.tituloDeSemana, { color: paleta.texto }]}>
                 {section.titulo}
               </Text>
-              <Text style={[estilos.sumaDeSemana, { color: paleta.textoTenue }]}>
+              <Text style={[datos, estilos.sumaDeSemana, { color: paleta.textoTenue }]}>
                 {section.data.length === 1 ? '1 entreno' : `${section.data.length} entrenos`} · {textoDeMinutos(section.minutos)}
               </Text>
             </View>
           )}
-          renderItem={({ item }) => <FilaDeEntreno entrada={item} hoy={hoy} />}
+          ItemSeparatorComponent={Separacion}
+          renderItem={({ item }) => (
+            <TarjetaDeEntreno
+              entrada={item}
+              hoy={hoy}
+              alPulsar={() => router.navigate({ pathname: '/entreno/[id]', params: { id: item.id } })}
+            />
+          )}
         />
       )}
       {Platform.OS !== 'ios' && aviso}
@@ -133,52 +148,21 @@ export default function Historial() {
   );
 }
 
-function FilaDeEntreno({ entrada, hoy }: { entrada: EntradaDelHistorial; hoy: string }) {
-  const paleta = usePaleta();
-  const cuando = `${textoDeFecha(entrada.fecha, hoy)}${entrada.hora === null ? '' : `, ${entrada.hora}`}`;
-  const contenido = resumenDelContenido(entrada.ejercicios, entrada.metros);
-  const cuanto = `${textoDeMinutos(entrada.minutos)} · esfuerzo ${entrada.esfuerzo}, ${palabraDelEsfuerzo(entrada.esfuerzo)}`;
-  const nombre = NOMBRE_DE_DISCIPLINA[entrada.disciplina];
-  // Para el lector de pantalla, la fecha entera y comas en vez de puntos medios.
-  const paraLeer = [
-    `${nombre}, ${fechaEnFrase(entrada.fecha, hoy)}${entrada.hora === null ? '' : `, a las ${entrada.hora}`}`,
-    contenido,
-    cuanto,
-  ]
-    .filter((parte) => parte !== null)
-    .map((parte) => parte.split(' · ').join(', '))
-    .join('. ');
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={paraLeer}
-      onPress={() => router.navigate({ pathname: '/entreno/[id]', params: { id: entrada.id } })}
-      style={({ pressed }) => [estilos.fila, pressed && estilos.pulsado]}
-    >
-      <View style={[estilos.marca, { backgroundColor: paleta.disciplina[entrada.disciplina].marca }]} />
-      <View style={estilos.textos}>
-        <Text style={[estilos.cuando, { color: paleta.texto }]}>
-          {nombre} · {cuando}
-        </Text>
-        {contenido !== null && (
-          <Text numberOfLines={1} style={[estilos.contenido, { color: paleta.texto }]}>
-            {contenido}
-          </Text>
-        )}
-        <Text style={[datos, estilos.cuanto, { color: paleta.textoTenue }]}>{cuanto}</Text>
-      </View>
-    </Pressable>
-  );
+/** El hueco entre dos entrenos de la misma semana. */
+function Separacion() {
+  return <View testID="separacion" style={estilos.separacion} />;
 }
 
 const estilos = StyleSheet.create({
   pantalla: {
     flex: 1,
-    paddingHorizontal: espacio[4],
+    paddingHorizontal: MARGEN,
   },
   titulo: {
     ...titulos.pantalla,
-    paddingVertical: espacio[4],
+    letterSpacing: -0.2,
+    paddingTop: espacio[3],
+    paddingBottom: 14,
   },
   error: {
     fontSize: texto.m,
@@ -197,11 +181,15 @@ const estilos = StyleSheet.create({
   },
   semana: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'baseline',
     justifyContent: 'space-between',
-    gap: espacio[2],
-    paddingTop: espacio[4],
-    paddingBottom: espacio[2],
+    columnGap: espacio[3],
+    paddingBottom: HUECO,
+  },
+  /** La primera semana va justo debajo del título; las demás, separadas de la de antes. */
+  otraSemana: {
+    paddingTop: 22,
   },
   tituloDeSemana: {
     ...titulos.semana,
@@ -210,31 +198,7 @@ const estilos = StyleSheet.create({
   sumaDeSemana: {
     fontSize: texto.s,
   },
-  fila: {
-    minHeight: toqueMinimo,
-    flexDirection: 'row',
-    gap: espacio[3],
-    paddingVertical: espacio[2],
-  },
-  marca: {
-    width: espacio[1],
-    borderRadius: espacio[1],
-  },
-  textos: {
-    flex: 1,
-    gap: 2,
-  },
-  cuando: {
-    fontSize: texto.m,
-    fontWeight: '600',
-  },
-  contenido: {
-    fontSize: texto.m,
-  },
-  cuanto: {
-    fontSize: texto.s,
-  },
-  pulsado: {
-    opacity: 0.7,
+  separacion: {
+    height: HUECO,
   },
 });

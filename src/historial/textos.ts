@@ -5,8 +5,8 @@ import { textoDeMinutos, textoDeSegundos, unirConY } from '@/gimnasio/editor';
 // Cómo se dice lo guardado de un entreno en el historial y en su detalle.
 
 /**
- * Lo que se hizo en un entreno, en una línea: «Press banca, Remo con barra y 3
- * más · 2,35 km». Null si no hay nada que decir.
+ * Lo que se hizo en un entreno, en pocas palabras: «Press banca, Remo con
+ * barra y 3 más · 2,35 km». Null si no hay nada que decir.
  */
 export function resumenDelContenido(ejercicios: string[], metros: number): string | null {
   const nombres =

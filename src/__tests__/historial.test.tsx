@@ -1,6 +1,6 @@
 import { act, fireEvent, waitFor, within } from '@testing-library/react-native';
 import { renderRouter, screen, testRouter } from 'expo-router/testing-library';
-import { Alert } from 'react-native';
+import { Alert, Platform, StyleSheet } from 'react-native';
 
 import Historial from '@/app/(pestanas)/historial';
 import Pestanas from '@/app/(pestanas)/_layout';
@@ -16,6 +16,7 @@ import { CLAVE_DEL_BORRADOR, claveDeCorreccion } from '@/gimnasio/editor';
 import { recogerElBorrado } from '@/historial/ultimoBorrado';
 import type { BaseDePrueba } from '@/pruebas/baseDePrueba';
 import { abrirBasePreparada, generadorDeIds } from '@/pruebas/datos';
+import { PALETAS } from '@/tema/colores';
 
 // Las pantallas de verdad sobre la base de prueba, como en
 // apuntar-gimnasio.test.tsx: allí están las trampas de los temporizadores.
@@ -185,6 +186,74 @@ describe('El historial y el detalle de un entreno', () => {
     ).toBeOnTheScreen();
   });
 
+  it('el título y cada semana, como en la maqueta: la suma baja si no cabe, y cada semana va separada de la de antes', async () => {
+    await guardar(deHoy());
+    await guardar(deLaSemanaPasada());
+    await renderRouter(RUTAS, { initialUrl: '/historial' });
+    const pantalla = await screen.findByTestId('historial');
+    const historial = within(pantalla);
+    await historial.findByText('1 entreno · 45 minutos');
+
+    expect(pantalla).toHaveStyle({ paddingHorizontal: 20 });
+    expect(historial.getByRole('header', { name: 'Historial' })).toHaveStyle({
+      fontFamily: 'Nunito_900Black',
+      fontSize: 30,
+      letterSpacing: -0.2,
+      paddingTop: 12,
+      paddingBottom: 14,
+    });
+    const [esta, pasada] = historial.getAllByTestId('semana');
+    for (const semana of [esta, pasada]) {
+      expect(semana).toHaveStyle({
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        alignItems: 'baseline',
+        justifyContent: 'space-between',
+        columnGap: 12,
+        paddingBottom: 10,
+      });
+    }
+    // La primera va justo debajo del título; la siguiente, a 22 del último entreno de la de antes.
+    expect(StyleSheet.flatten(esta.props.style).paddingTop).toBeUndefined();
+    expect(pasada).toHaveStyle({ paddingTop: 22 });
+    expect(within(esta).getByRole('header', { name: 'Esta semana' })).toHaveStyle({
+      fontFamily: 'Nunito_800ExtraBold',
+      fontSize: 18,
+    });
+    expect(within(pasada).getByText('1 entreno · 46 minutos')).toHaveStyle({
+      fontSize: 14,
+      fontVariant: ['tabular-nums'],
+      color: PALETAS.claro.textoTenue,
+    });
+    expect(historial.getAllByTestId('entreno')).toHaveLength(2);
+  });
+
+  it('sin entrenos esta semana, la primera semana de la lista va justo debajo del título, sea la que sea', async () => {
+    await guardar(deLaSemanaPasada());
+    await renderRouter(RUTAS, { initialUrl: '/historial' });
+    const historial = within(await screen.findByTestId('historial'));
+    await historial.findByText('1 entreno · 46 minutos');
+    const semanas = historial.getAllByTestId('semana');
+    expect(semanas).toHaveLength(1);
+    expect(within(semanas[0]).getByRole('header', { name: 'La semana pasada' })).toBeOnTheScreen();
+    expect(StyleSheet.flatten(semanas[0].props.style).paddingTop).toBeUndefined();
+  });
+
+  it('en Android, el aviso de un borrado flota abajo alineado con las tarjetas, a 20 de cada lado', async () => {
+    const android = jest.replaceProperty(Platform, 'OS', 'android');
+    try {
+      await guardar(deHoy());
+      const app = await abrirElDeHoy();
+      await fireEvent.press(screen.getByText('Borrar entreno'));
+      await waitFor(() => expect(app.getPathname()).toBe('/historial'));
+      const aviso = await screen.findByTestId('aviso-deshacer');
+      expect(aviso).toHaveTextContent(/^Entreno de hoy borrado/);
+      expect(aviso).toHaveStyle({ position: 'absolute', left: 20, right: 20 });
+    } finally {
+      android.restore();
+    }
+  });
+
   it('el detalle enseña la carrera, la superserie con sus vueltas, los descansos y las notas', async () => {
     await guardar(deHoy());
     await abrirElDeHoy();
@@ -211,6 +280,13 @@ describe('El historial y el detalle de un entreno', () => {
     expect(await screen.findByText('Entreno de hoy borrado')).toBeOnTheScreen();
     expect(await screen.findByText('Aquí saldrán tus entrenos cuando apuntes el primero.')).toBeOnTheScreen();
     expect(mockBase.mirar('SELECT borrado FROM entreno')).toEqual([{ borrado: 1 }]);
+    // En el iPhone, el aviso va en su sitio, justo bajo el título: flotando, o al final de la
+    // pantalla, la barra de pestañas lo taparía.
+    const aviso = screen.getByTestId('aviso-deshacer');
+    expect(StyleSheet.flatten(aviso.props.style).position).toBeUndefined();
+    const [titulo, debajo] = screen.getByTestId('historial').children as (typeof aviso)[];
+    expect(titulo).toHaveTextContent('Historial');
+    expect(debajo.props.testID).toBe('aviso-deshacer');
 
     await fireEvent.press(screen.getByText('Deshacer'));
     expect(await screen.findByLabelText(/^Gimnasio, hoy, a las 18:30/)).toBeOnTheScreen();
@@ -287,6 +363,14 @@ describe('El historial y el detalle de un entreno', () => {
     const historial = within(await screen.findByTestId('historial'));
     expect(await historial.findByText('2 entrenos · 90 minutos')).toBeOnTheScreen();
     expect(historial.getAllByText('Esta semana')).toHaveLength(1);
+    // El más reciente arriba, y entre los dos, 10 de hueco: el mismo que bajo la cabecera de la semana.
+    expect(historial.getAllByTestId('entreno').map((entreno) => entreno.props.accessibilityLabel)).toEqual([
+      expect.stringMatching(/^Gimnasio, hoy, a las 18:30\./),
+      expect.stringMatching(/^Gimnasio, hoy, a las 08:00\./),
+    ]);
+    const separaciones = historial.getAllByTestId('separacion');
+    expect(separaciones).toHaveLength(1);
+    expect(separaciones[0]).toHaveStyle({ height: 10 });
   });
 
   it('un entreno guardado desde otra pestaña sale en el historial al volver a él', async () => {

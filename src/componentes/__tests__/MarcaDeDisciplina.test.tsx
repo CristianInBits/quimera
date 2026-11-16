@@ -19,6 +19,14 @@ describe('La marca de una disciplina', () => {
     expect(estilo(screen.getByTestId('icono-gimnasio', ocultos)).width).toBe(18 * Dimensions.get('window').fontScale);
   });
 
+  it('la del historial mide 24 como poco, con su icono de 16, que crece con la letra sin tope', async () => {
+    await render(<MarcaDeDisciplina disciplina="hyrox" tamano="historial" />);
+    const marca = estilo(screen.getByTestId('marca-de-disciplina'));
+    expect(marca).toMatchObject({ minWidth: 24, minHeight: 24, padding: 4, borderRadius: 8 });
+    expect(marca.width).toBeUndefined();
+    expect(estilo(screen.getByTestId('icono-hyrox', ocultos)).width).toBe(16 * Dimensions.get('window').fontScale);
+  });
+
   it('la de la cabecera mide 32 como poco, con su icono de 20, que crece como mucho como el título', async () => {
     await render(<MarcaDeDisciplina disciplina="gimnasio" tamano="cabecera" />);
     expect(estilo(screen.getByTestId('marca-de-disciplina'))).toMatchObject({

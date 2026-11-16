@@ -19,6 +19,7 @@ export function AvisoDeshacer({
   alDeshacer,
   alAcabar,
   enLinea = false,
+  margen = espacio[4],
   onLayout,
 }: {
   texto: string;
@@ -30,6 +31,12 @@ export function AvisoDeshacer({
    * pestañas, que taparía un aviso pegado abajo.
    */
   enLinea?: boolean;
+  /**
+   * Lo que deja a cada lado al flotar: el margen de los lados de su pantalla,
+   * para que quede alineado con lo de debajo. Flotando, se cuenta desde el
+   * borde de la pantalla, no desde el relleno de la pantalla.
+   */
+  margen?: number;
   /** Lo que mide al pintarse, para que la pantalla deje sitio debajo mientras se ve. */
   onLayout?: ViewProps['onLayout'];
 }) {
@@ -49,7 +56,9 @@ export function AvisoDeshacer({
       onLayout={onLayout}
       style={[
         estilos.aviso,
-        enLinea ? estilos.enLinea : [estilos.flotante, { bottom: margenes.bottom + espacio[4] }],
+        enLinea
+          ? estilos.enLinea
+          : [estilos.flotante, { left: margen, right: margen, bottom: margenes.bottom + espacio[4] }],
         { backgroundColor: paleta.texto },
       ]}
     >
@@ -69,8 +78,6 @@ const estilos = StyleSheet.create({
   },
   flotante: {
     position: 'absolute',
-    left: espacio[4],
-    right: espacio[4],
   },
   enLinea: {
     marginBottom: espacio[3],

@@ -13,7 +13,7 @@ export const radio = {
   control: 16,
   /** Botones con borde, avisos y grupos dentro de una tarjeta. */
   boton: 18,
-  /** El botón principal. */
+  /** El botón principal y cada entreno del historial. */
   grande: 20,
   /** Tarjetas. */
   tarjeta: 24,
