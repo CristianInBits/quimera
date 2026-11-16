@@ -4,11 +4,13 @@ import {
   AccessibilityInfo,
   Alert,
   Dimensions,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -16,8 +18,8 @@ import { AvisoDeshacer } from '@/componentes/AvisoDeshacer';
 import { Boton } from '@/componentes/Boton';
 import { CampoDeFecha } from '@/componentes/CampoDeFecha';
 import { EvitarTeclado } from '@/componentes/EvitarTeclado';
-import { Mascota } from '@/componentes/Mascota';
-import { SelectorDeEsfuerzo } from '@/componentes/SelectorDeEsfuerzo';
+import { TarjetaDeEsfuerzo } from '@/componentes/TarjetaDeEsfuerzo';
+import { TituloConMarca } from '@/componentes/TituloConMarca';
 import { useHoy } from '@/componentes/useHoy';
 import { leerAjuste, ponerAjusteEn, quitarAjusteLocalEn } from '@/datos/ajustes';
 import { GRUPOS_DEL_GIMNASIO } from '@/datos/catalogo';
@@ -49,9 +51,21 @@ import {
 } from '@/gimnasio/editor';
 import { SelectorDeEjercicio } from '@/gimnasio/SelectorDeEjercicio';
 import { usePaleta } from '@/tema/colores';
-import { datos, espacio, radio, texto, titulos, toqueMinimo } from '@/tema/medidas';
+import { datos, espacio, radio, texto, titulos } from '@/tema/medidas';
 
 type Cambio = (e: EntrenoEnEdicion) => EntrenoEnEdicion;
+
+/** La letra de la duración, como la de los campos con pasos. */
+const LETRA_DE_LA_DURACION = 22;
+
+/**
+ * El ancho de la caja de la duración: 96, como en la maqueta, o lo que pidan
+ * tres cifras con la letra del sistema muy grande, con su borde y su relleno.
+ * Una cifra en negrita mide algo menos de 0,58 de su letra.
+ */
+function anchoDeLaDuracion(fontScale: number): number {
+  return Math.max(96, 3 * 0.58 * LETRA_DE_LA_DURACION * fontScale + 2 * (2 + espacio[1]));
+}
 
 /**
  * Apuntar un entreno de gimnasio, en directo o después, o corregir uno ya
@@ -82,6 +96,12 @@ export default function ApuntarGimnasio() {
   const [sinBorrador, setSinBorrador] = useState(false);
   const [apartado, setApartado] = useState(false);
   const [deshacer, setDeshacer] = useState<{ texto: string; anterior: EntrenoEnEdicion } | null>(null);
+  // Lo que deja libre abajo el aviso de deshacer, además de los 32: su alto y 16 de aire. Al irse
+  // el aviso no se quita enseguida, sino al subir la lista, cuando ya no se ve: si encogiera con la
+  // lista al final, en Android la lista saltaría bajo el dedo, y un toque en Guardar caería en las
+  // notas.
+  const [libreDelAviso, setLibreDelAviso] = useState(0);
+  const { fontScale } = useWindowDimensions();
   // Al corregir, si el entreno cambió o se borró mientras tanto, se puede guardar como uno nuevo.
   const [cambiado, setCambiado] = useState(false);
   // El borrador no se escribe hasta el primer cambio: abrir una corrección y salir sin tocar nada no deja borrador.
@@ -202,19 +222,35 @@ export default function ApuntarGimnasio() {
    */
   const asegurarVisible = useCallback(
     (desdeArriba: number, alto: number) => {
-      const visible = Dimensions.get('window').height - margenes.bottom - espacio[8] * 2;
-      const sobra = desdeArriba + alto - visible;
+      const tapado = margenes.bottom + espacio[4] + (deshacer === null ? 0 : libreDelAviso);
+      const sobra = desdeArriba + alto - (Dimensions.get('window').height - tapado);
       if (sobra > 0) lista.current?.scrollTo({ y: desplazado.current + sobra, animated: true });
     },
-    [margenes.bottom],
+    [margenes.bottom, deshacer, libreDelAviso],
   );
 
   const titulo = corrigiendo ? 'Corregir entreno' : 'Gimnasio';
+  // La marca del gimnasio va delante del título. En Android, la pila recibe un
+  // título vacío: con uno, su cabecera deja 72 antes del título propio, y la
+  // marca quedaría más a la derecha que en la maqueta. El editor esconde la
+  // barra de navegación de Android, que vuelve un momento al deslizar desde
+  // abajo: es largo, se usa con una mano y la barra se comía su final.
+  const opciones = {
+    headerShown: true,
+    title: Platform.OS === 'android' ? '' : titulo,
+    headerTitle: () => <TituloConMarca disciplina="gimnasio" titulo={titulo} />,
+    navigationBarHidden: true,
+  };
+  // Con el título vacío, TalkBack no tiene qué decir al abrir la pantalla, que es lo que
+  // dice con las demás: se le dice el título. Al explorar, lee el de TituloConMarca.
+  useEffect(() => {
+    if (Platform.OS === 'android') AccessibilityInfo.announceForAccessibility(titulo);
+  }, [titulo]);
 
   if (entreno === null || elegibles === null) {
     return (
       <View style={[estilos.pantalla, { backgroundColor: paleta.fondo }]}>
-        <Stack.Screen options={{ headerShown: true, title: titulo }} />
+        <Stack.Screen options={opciones} />
         {errores.map((error, i) => (
           <Text key={i} style={[estilos.error, { color: paleta.error }]}>
             {error}
@@ -317,16 +353,24 @@ export default function ApuntarGimnasio() {
 
   return (
     <View style={[estilos.pantalla, { backgroundColor: paleta.fondo }]}>
-      <Stack.Screen options={{ headerShown: true, title: titulo }} />
+      <Stack.Screen options={opciones} />
       <EvitarTeclado style={estilos.pantalla}>
         <ScrollView
           testID="editor"
           ref={lista}
-          // Abajo queda sitio para la barra del sistema y, encima, para el aviso de deshacer.
-          contentContainerStyle={[estilos.contenido, { paddingBottom: margenes.bottom + espacio[8] * 3 }]}
+          // Abajo quedan 32 libres por encima de la barra del sistema, si la hay, y lo que
+          // deja el aviso de deshacer, para que no tape el final.
+          contentContainerStyle={[estilos.contenido, { paddingBottom: margenes.bottom + espacio[8] + libreDelAviso }]}
           keyboardShouldPersistTaps="handled"
           onScroll={(evento) => {
-            desplazado.current = evento.nativeEvent.contentOffset.y;
+            const { contentOffset, contentSize, layoutMeasurement } = evento.nativeEvent;
+            // Ido el aviso, su hueco se quita al subir, cuando ya queda por debajo de lo que se ve:
+            // así, al encoger el final, no se mueve nada en la pantalla. Bajando no, porque el final
+            // encoge un momento después, y la lista podría estar ya entrando en el hueco.
+            const subiendo = contentOffset.y < desplazado.current;
+            desplazado.current = contentOffset.y;
+            const seVeElHueco = contentOffset.y + layoutMeasurement.height > contentSize.height - libreDelAviso;
+            if (deshacer === null && libreDelAviso > 0 && subiendo && !seVeElHueco) setLibreDelAviso(0);
           }}
           scrollEventThrottle={32}
         >
@@ -402,21 +446,32 @@ export default function ApuntarGimnasio() {
             </View>
           </View>
 
-          <View style={estilos.seccion}>
-            <Text style={[estilos.titulo, { color: paleta.texto }]}>Duración</Text>
-            <View style={estilos.minutos}>
-              <TextInput
-                accessibilityLabel="Duración en minutos"
-                value={entreno.minutos}
-                placeholder={medidaValida ? String(medidos + corridosFuera) : ''}
-                placeholderTextColor={paleta.textoTenue}
-                onChangeText={(minutos) => cambiar((e) => cambiarEntreno(e, { minutos }))}
-                keyboardType="number-pad"
-                style={[datos, estilos.entrada, { color: paleta.texto, borderColor: paleta.textoTenue }]}
-              />
-              <Text style={[estilos.unidad, { color: paleta.texto }]}>minutos</Text>
+          <View style={estilos.duracion}>
+            <View testID="fila-de-la-duracion" style={estilos.filaDeLaDuracion}>
+              <Text style={[estilos.titulo, { color: paleta.texto }]}>Duración</Text>
+              <View style={estilos.minutos}>
+                <TextInput
+                  accessibilityLabel="Duración en minutos"
+                  value={entreno.minutos}
+                  placeholder={medidaValida ? String(medidos + corridosFuera) : ''}
+                  placeholderTextColor={paleta.textoTenue}
+                  onChangeText={(minutos) => cambiar((e) => cambiarEntreno(e, { minutos }))}
+                  keyboardType="number-pad"
+                  style={[
+                    datos,
+                    estilos.entrada,
+                    {
+                      width: anchoDeLaDuracion(fontScale),
+                      color: paleta.texto,
+                      backgroundColor: paleta.campo,
+                      borderColor: paleta.bordeControl,
+                    },
+                  ]}
+                />
+                <Text style={[estilos.unidad, { color: paleta.texto }]}>minutos</Text>
+              </View>
             </View>
-            <Text style={[estilos.ayuda, { color: paleta.textoTenue }]}>
+            <Text style={[datos, estilos.explicacion, { color: paleta.textoTenue }]}>
               {entreno.minutos.trim() !== ''
                 ? 'La que has escrito.'
                 : medidos === null
@@ -429,17 +484,11 @@ export default function ApuntarGimnasio() {
             </Text>
           </View>
 
-          <View style={estilos.seccion}>
-            <Text style={[estilos.titulo, { color: paleta.texto }]}>Esfuerzo</Text>
-            <View style={estilos.mascota}>
-              <Mascota disciplina="gimnasio" esfuerzo={entreno.esfuerzo} tamano={96} />
-            </View>
-            <SelectorDeEsfuerzo
-              valor={entreno.esfuerzo}
-              color={color}
-              alCambiar={(esfuerzo) => cambiar((e) => cambiarEntreno(e, { esfuerzo }))}
-            />
-          </View>
+          <TarjetaDeEsfuerzo
+            disciplina="gimnasio"
+            valor={entreno.esfuerzo}
+            alCambiar={(esfuerzo) => cambiar((e) => cambiarEntreno(e, { esfuerzo }))}
+          />
 
           <View style={estilos.seccion}>
             <Text style={[estilos.titulo, { color: paleta.texto }]}>Notas</Text>
@@ -449,7 +498,7 @@ export default function ApuntarGimnasio() {
               onChangeText={(notas) => cambiar((e) => cambiarEntreno(e, { notas }))}
               multiline
               maxLength={4000}
-              style={[estilos.notas, { color: paleta.texto, borderColor: paleta.textoTenue }]}
+              style={[estilos.notas, { color: paleta.texto, backgroundColor: paleta.campo, borderColor: paleta.bordeControl }]}
             />
           </View>
 
@@ -476,23 +525,30 @@ export default function ApuntarGimnasio() {
               alPulsar={() => void guardar(true)}
             />
           )}
-          <Boton
-            titulo={guardando ? 'Guardando' : corrigiendo ? 'Guardar los cambios' : 'Guardar'}
-            variante="principal"
-            deshabilitado={guardando}
-            alPulsar={() => void guardar()}
-          />
-          <Boton
-            titulo={corrigiendo ? 'Descartar los cambios' : 'Descartar este entreno'}
-            variante="error"
-            alPulsar={descartar}
-          />
+          {/* Guardar y Descartar van juntos, como pareja. */}
+          <View testID="guardar-y-descartar" style={estilos.guardarYDescartar}>
+            <Boton
+              titulo={guardando ? 'Guardando' : corrigiendo ? 'Guardar los cambios' : 'Guardar'}
+              variante="principal"
+              deshabilitado={guardando}
+              alPulsar={() => void guardar()}
+            />
+            <Boton
+              titulo={corrigiendo ? 'Descartar los cambios' : 'Descartar este entreno'}
+              variante="error"
+              alPulsar={descartar}
+            />
+          </View>
         </ScrollView>
       </EvitarTeclado>
 
       {deshacer !== null && (
         <AvisoDeshacer
           texto={deshacer.texto}
+          onLayout={(evento) => {
+            const libre = evento.nativeEvent.layout.height + espacio[4];
+            setLibreDelAviso((antes) => Math.max(antes, libre));
+          }}
           alDeshacer={() => {
             const anterior = deshacer.anterior;
             setDeshacer(null);
@@ -540,36 +596,57 @@ const estilos = StyleSheet.create({
     marginTop: espacio[3],
     gap: espacio[1],
   },
-  mascota: {
-    alignItems: 'center',
-  },
   titulo: titulos.seccion,
-  minutos: {
+  duracion: {
+    gap: 6,
+  },
+  // El título a un lado y la caja con «minutos» al otro; con la letra grande, la caja baja.
+  filaDeLaDuracion: {
+    minHeight: 52,
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: espacio[3],
   },
+  // Con la letra enorme, «minutos» baja debajo de la caja antes que salirse de la pantalla.
+  minutos: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 10,
+  },
   entrada: {
-    width: 120,
-    minHeight: toqueMinimo,
-    borderWidth: 1.5,
+    minHeight: 52,
+    borderWidth: 2,
     borderRadius: radio.control,
-    fontSize: texto.xl,
+    paddingHorizontal: espacio[1],
+    paddingVertical: 0,
+    fontSize: LETRA_DE_LA_DURACION,
+    fontWeight: '700',
     textAlign: 'center',
   },
   unidad: {
     fontSize: texto.m,
   },
+  explicacion: {
+    marginHorizontal: espacio[1],
+    fontSize: texto.s,
+  },
   ayuda: {
     fontSize: texto.s,
   },
   notas: {
-    minHeight: toqueMinimo * 2,
-    borderWidth: 1.5,
+    minHeight: 72,
+    borderWidth: 2,
     borderRadius: radio.boton,
-    padding: espacio[3],
+    paddingVertical: espacio[3],
+    paddingHorizontal: 14,
     fontSize: texto.m,
     textAlignVertical: 'top',
+  },
+  guardarYDescartar: {
+    gap: espacio[1],
   },
   errores: {
     gap: espacio[1],

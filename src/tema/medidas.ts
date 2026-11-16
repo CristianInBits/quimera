@@ -31,6 +31,14 @@ export function esLetraGrande(fontScale: number): boolean {
   return Math.round(fontScale * 100) >= 130;
 }
 
+/**
+ * Lo más que crece con la letra del sistema el título de la cabecera de una
+ * pantalla: la barra de arriba es nativa y no crece con ella. Sin tope, con
+ * la letra al 200 % «Corregir entreno» se corta, y en el iPhone, con los
+ * tamaños de accesibilidad, el título se sale de la barra.
+ */
+export const ESCALA_DE_LA_CABECERA = 1.3;
+
 export const texto = { xs: 12, s: 14, m: 16, l: 20, xl: 28, datoXl: 40 } as const;
 
 /**

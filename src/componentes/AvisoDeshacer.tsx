@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { AccessibilityInfo, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, StyleSheet, Text, View, type ViewProps } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { usePaleta } from '@/tema/colores';
@@ -19,6 +19,7 @@ export function AvisoDeshacer({
   alDeshacer,
   alAcabar,
   enLinea = false,
+  onLayout,
 }: {
   texto: string;
   alDeshacer: () => void;
@@ -29,6 +30,8 @@ export function AvisoDeshacer({
    * pestañas, que taparía un aviso pegado abajo.
    */
   enLinea?: boolean;
+  /** Lo que mide al pintarse, para que la pantalla deje sitio debajo mientras se ve. */
+  onLayout?: ViewProps['onLayout'];
 }) {
   const paleta = usePaleta();
   // La app se dibuja hasta el borde de abajo, por detrás de la barra de
@@ -41,7 +44,9 @@ export function AvisoDeshacer({
   }, [mensaje, alAcabar]);
   return (
     <View
+      testID="aviso-deshacer"
       accessibilityLiveRegion="polite"
+      onLayout={onLayout}
       style={[
         estilos.aviso,
         enLinea ? estilos.enLinea : [estilos.flotante, { bottom: margenes.bottom + espacio[4] }],

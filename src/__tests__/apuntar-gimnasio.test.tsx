@@ -1,6 +1,6 @@
 import { act, fireEvent, waitFor, within } from '@testing-library/react-native';
 import { renderRouter, screen, testRouter } from 'expo-router/testing-library';
-import { AccessibilityInfo, Alert, StyleSheet } from 'react-native';
+import { AccessibilityInfo, Alert, Dimensions, Platform, ScrollView, StyleSheet, useColorScheme } from 'react-native';
 
 import Historial from '@/app/(pestanas)/historial';
 import Pestanas from '@/app/(pestanas)/_layout';
@@ -8,10 +8,12 @@ import Inicio from '@/app/(pestanas)/index';
 import Raiz from '@/app/_layout';
 import Apuntar from '@/app/apuntar';
 import ApuntarGimnasio from '@/app/apuntar/gimnasio';
-import { p } from '@/datos/base';
+import { SEGUNDOS_PARA_DESHACER } from '@/componentes/AvisoDeshacer';
+import { p, puertaDe } from '@/datos/base';
 import * as entrenos from '@/datos/entrenos';
+import { guardarEntrenoEn } from '@/datos/entrenos';
 import type { BaseDePrueba } from '@/pruebas/baseDePrueba';
-import { T0, abrirBasePreparada } from '@/pruebas/datos';
+import { T0, abrirBasePreparada, generadorDeIds, gimnasioConCalentamiento } from '@/pruebas/datos';
 import { PALETAS } from '@/tema/colores';
 
 // La pantalla de verdad sobre la base de prueba: la base que daría
@@ -26,6 +28,18 @@ let mockBase: BaseDePrueba;
 jest.mock('expo-sqlite', () => ({
   SQLiteProvider: ({ children }: { children: unknown }) => children,
   useSQLiteContext: () => mockBase,
+}));
+// La escala de la letra del sistema: 2, la que da Jest, salvo donde una prueba diga otra.
+let mockEscala = 2;
+jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => ({
+  __esModule: true,
+  default: () => ({ width: 390, height: 844, scale: 2, fontScale: mockEscala }),
+}));
+// Lo que tapa abajo el sistema: nada, como da expo-router en las pruebas, salvo donde una prueba diga otra cosa.
+let mockAbajo = 0;
+jest.mock('react-native-safe-area-context', () => ({
+  ...jest.requireActual('react-native-safe-area-context'),
+  useSafeAreaInsets: () => ({ top: 0, left: 0, right: 0, bottom: mockAbajo }),
 }));
 jest.mock('@/datos/movil', () => {
   const { generadorDeIds } = jest.requireActual('@/pruebas/datos');
@@ -54,6 +68,33 @@ const borrador = () =>
   mockBase.mirar<{ valor: string }>("SELECT valor FROM ajuste WHERE clave = 'local.borrador.gimnasio'");
 const enElBorrador = () => JSON.parse(borrador()[0].valor);
 const guardados = () => mockBase.mirar<{ n: number }>('SELECT COUNT(*) AS n FROM entreno')[0].n;
+
+/** Lo que deja libre el final del editor, por debajo de Descartar. */
+const final = () => StyleSheet.flatten(screen.getByTestId('editor').props.contentContainerStyle).paddingBottom;
+
+/**
+ * Desplaza la lista del editor, de 800 de alto, hasta que su borde de arriba
+ * quede en «hasta», con un contenido de «de» de alto.
+ */
+const desplazar = ({ hasta, de }: { hasta: number; de: number }) =>
+  fireEvent.scroll(screen.getByTestId('editor'), {
+    nativeEvent: {
+      contentOffset: { x: 0, y: hasta },
+      contentSize: { width: 390, height: de },
+      layoutMeasurement: { width: 390, height: 800 },
+    },
+  });
+
+/** Lo que la pantalla de arriba de la pila le pasa a la cabecera nativa como título. */
+function tituloDeLaPila() {
+  const titulos: unknown[] = [];
+  const recorrer = (nodo: ReturnType<typeof screen.getByText>) => {
+    if (nodo.type === 'RNSScreenStackHeaderConfig') titulos.push(nodo.props.title);
+    for (const hijo of nodo.children) if (typeof hijo !== 'string') recorrer(hijo);
+  };
+  if (screen.root !== null) recorrer(screen.root);
+  return titulos.at(-1);
+}
 
 /** Abre la app en Inicio y llega al editor como en el móvil: Apuntar un entreno, Gimnasio. */
 async function abrirElEditor() {
@@ -86,6 +127,9 @@ describe('Apuntar un entreno de gimnasio', () => {
     mockBase = await abrirBasePreparada();
   });
   afterEach(() => {
+    mockEscala = 2;
+    mockAbajo = 0;
+    jest.mocked(useColorScheme).mockReturnValue('light');
     jest.useRealTimers();
     espias.forEach((espia) => espia.mockRestore());
     espias.length = 0;
@@ -508,7 +552,8 @@ describe('Apuntar un entreno de gimnasio', () => {
   it('en el editor, el rinoceronte cambia con el esfuerzo', async () => {
     await renderRouter(RUTAS, { initialUrl: '/apuntar/gimnasio' });
     await screen.findByText('Añadir ejercicio');
-    const dibujo = () => screen.getByTestId('mascota').props.source.testUri;
+    // El dibujo va sobre su escenario, que el lector de pantalla salta: al lado está la cifra.
+    const dibujo = () => screen.getByTestId('mascota', { includeHiddenElements: true }).props.source.testUri;
     expect(dibujo()).toMatch(/rinoceronte\.png$/);
     await fireEvent.press(screen.getByLabelText('7, duro'));
     expect(dibujo()).toMatch(/rinoceronte-4\.png$/);
@@ -593,5 +638,311 @@ describe('Apuntar un entreno de gimnasio', () => {
       padding: 16,
       paddingTop: 8,
     });
+  });
+
+  it('la cabecera lleva la marca del gimnasio delante del título, en la de la cabecera', async () => {
+    await abrirElEditor();
+    const titulo = screen.getByRole('header', { name: 'Gimnasio' });
+    const [marca, texto] = (titulo.parent as typeof titulo).children as (typeof titulo)[];
+    expect(marca.props.testID).toBe('marca-de-disciplina');
+    expect(marca).toHaveStyle({ minWidth: 32, minHeight: 32, padding: 6, borderRadius: 10 });
+    expect(texto.props.children).toBe('Gimnasio');
+  });
+
+  it('en el iPhone, la pila recibe el título, que hace falta para volver, y no se anuncia', async () => {
+    const anuncio = espiar(jest.spyOn(AccessibilityInfo, 'announceForAccessibility'));
+    // El simulado viene con las llamadas de las pruebas de antes: solo cuentan las de esta.
+    anuncio.mockClear();
+    await abrirElEditor();
+    expect(tituloDeLaPila()).toBe('Gimnasio');
+    await dejarPasar();
+    expect(anuncio).not.toHaveBeenCalledWith('Gimnasio');
+  });
+
+  it('en Android, la pila recibe un título vacío, para que el título con su marca empiece tras la flecha, y TalkBack lo dice', async () => {
+    const anuncio = espiar(jest.spyOn(AccessibilityInfo, 'announceForAccessibility'));
+    anuncio.mockClear();
+    const android = jest.replaceProperty(Platform, 'OS', 'android');
+    try {
+      await renderRouter(RUTAS, { initialUrl: '/apuntar/gimnasio' });
+      await screen.findByText('Añadir ejercicio');
+      expect(tituloDeLaPila()).toBe('');
+      expect(screen.getByRole('header', { name: 'Gimnasio' })).toBeOnTheScreen();
+      // Sin título en la pila, TalkBack no tendría qué decir al abrir la pantalla.
+      expect(anuncio).toHaveBeenCalledWith('Gimnasio');
+      // Y lo dice una vez: no con cada cambio, ni con los errores al guardar.
+      await fireEvent.press(screen.getByLabelText('7, duro'));
+      await fireEvent.press(screen.getByText('Guardar'));
+      await dejarPasar();
+      expect(anuncio.mock.calls.filter(([texto]) => texto === 'Gimnasio')).toHaveLength(1);
+    } finally {
+      android.restore();
+    }
+  });
+
+  it('al corregir un entreno, la cabecera dice «Corregir entreno», con la marca delante', async () => {
+    const entreno = gimnasioConCalentamiento(generadorDeIds(T0 + 1_000_000));
+    await puertaDe(mockBase).escribir((tx) => guardarEntrenoEn(tx, entreno, { ahora: T0 }));
+    await renderRouter(RUTAS, { initialUrl: `/apuntar/gimnasio?corregir=${entreno.id}` });
+    await screen.findByText('Guardar los cambios');
+    const titulo = screen.getByRole('header', { name: 'Corregir entreno' });
+    const [marca] = (titulo.parent as typeof titulo).children as (typeof titulo)[];
+    expect(marca.props.testID).toBe('marca-de-disciplina');
+    expect(tituloDeLaPila()).toBe('Corregir entreno');
+  });
+
+  it('el editor esconde la barra de navegación de Android, y las pantallas de debajo no', async () => {
+    await abrirElEditor();
+    /** La pantalla de la pila donde está un elemento. */
+    const pantallaDe = (elemento: ReturnType<typeof screen.getByText>) => {
+      let nodo: typeof elemento | null = elemento;
+      while (nodo !== null && nodo.type !== 'RNSScreen') nodo = nodo.parent;
+      return nodo;
+    };
+    const editor = pantallaDe(screen.getByTestId('editor'));
+    expect(editor?.props.navigationBarHidden).toBe(true);
+    // Ni Inicio, debajo de todo, ni Apuntar, a la que se vuelve.
+    for (const deOtra of [
+      screen.getByText('Apuntar un entreno', { includeHiddenElements: true }),
+      screen.getByLabelText('Hyrox, pronto', { includeHiddenElements: true }),
+    ]) {
+      const pantalla = pantallaDe(deOtra);
+      expect(pantalla).not.toBeNull();
+      expect(pantalla).not.toBe(editor);
+      expect(pantalla?.props.navigationBarHidden).toBeFalsy();
+    }
+  });
+
+  it('la duración: el título a un lado y, al otro, su caja de 96 con «minutos»; debajo, de dónde sale', async () => {
+    await abrirElEditor();
+    const fila = screen.getByTestId('fila-de-la-duracion');
+    expect(fila).toHaveStyle({
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+      minHeight: 52,
+    });
+    const [titulo, conLaCaja] = fila.children as (typeof fila)[];
+    expect(titulo.props.children).toBe('Duración');
+    expect(within(conLaCaja).getByLabelText('Duración en minutos')).toBeOnTheScreen();
+    expect(within(conLaCaja).getByText('minutos')).toBeOnTheScreen();
+    // La caja y «minutos», a 10; con la letra enorme, «minutos» baja debajo antes que salirse.
+    expect(conLaCaja).toHaveStyle({ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 });
+    expect(StyleSheet.flatten(screen.getByLabelText('Duración en minutos').props.style)).toMatchObject({
+      width: 96,
+      minHeight: 52,
+      paddingHorizontal: 4,
+      paddingVertical: 0,
+      borderWidth: 2,
+      borderRadius: 16,
+      fontSize: 22,
+      fontWeight: '700',
+      textAlign: 'center',
+      fontVariant: ['tabular-nums'],
+    });
+    // Debajo, a 6, la explicación de dónde sale.
+    const duracion = fila.parent as typeof fila;
+    expect(duracion).toHaveStyle({ gap: 6 });
+    const [primero, explicacion] = duracion.children as (typeof fila)[];
+    expect(primero).toBe(fila);
+    expect(String(explicacion.props.children)).toMatch(/^Escríbela, o marca las series/);
+    expect(StyleSheet.flatten(explicacion.props.style)).toMatchObject({
+      fontSize: 14,
+      marginHorizontal: 4,
+      fontVariant: ['tabular-nums'],
+    });
+  });
+
+  it.each(['claro', 'oscuro'] as const)(
+    'en modo %s, la duración y las notas van en el fondo de los campos, con el borde de los controles',
+    async (modo) => {
+      const paleta = PALETAS[modo];
+      jest.mocked(useColorScheme).mockReturnValue(modo === 'oscuro' ? 'dark' : 'light');
+      await abrirElEditor();
+      for (const caja of [screen.getByLabelText('Duración en minutos'), screen.getByLabelText('Notas')]) {
+        expect(StyleSheet.flatten(caja.props.style)).toMatchObject({
+          color: paleta.texto,
+          backgroundColor: paleta.campo,
+          borderColor: paleta.bordeControl,
+        });
+      }
+      expect(screen.getByLabelText('Duración en minutos').props.placeholderTextColor).toBe(paleta.textoTenue);
+      expect(StyleSheet.flatten(screen.getByText(/^Escríbela, o marca las series/).props.style)).toMatchObject({
+        color: paleta.textoTenue,
+      });
+    },
+  );
+
+  it('con la letra enorme de los tamaños de accesibilidad del iPhone, la caja de la duración crece para tres cifras', async () => {
+    mockEscala = 3.571;
+    await abrirElEditor();
+    const caja = StyleSheet.flatten(screen.getByLabelText('Duración en minutos').props.style);
+    const { width, fontSize, borderWidth, paddingHorizontal } = caja as Record<string, number>;
+    // Tres cifras de algo menos de 0,58 de su letra, con su borde y su relleno, como se pintan.
+    expect(width).toBeGreaterThanOrEqual(3 * 0.58 * fontSize * 3.571 + 2 * (borderWidth + paddingHorizontal));
+    expect(width).toBeGreaterThan(96);
+  });
+
+  it('las notas van en su caja, como la duración', async () => {
+    await abrirElEditor();
+    expect(StyleSheet.flatten(screen.getByLabelText('Notas').props.style)).toMatchObject({
+      minHeight: 72,
+      borderWidth: 2,
+      borderRadius: 18,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      fontSize: 16,
+      textAlignVertical: 'top',
+    });
+  });
+
+  it('Guardar y Descartar van juntos, a 4 uno del otro', async () => {
+    await abrirElEditor();
+    const pareja = screen.getByTestId('guardar-y-descartar');
+    expect(pareja).toHaveStyle({ gap: 4 });
+    expect((pareja.children as (typeof pareja)[]).map((boton) => boton.props.accessibilityLabel)).toEqual([
+      'Guardar',
+      'Descartar este entreno',
+    ]);
+  });
+
+  it('el final deja 32 libres y, con el aviso de deshacer, también su alto y su aire', async () => {
+    await abrirElEditor();
+    expect(final()).toBe(32);
+    await apuntarUnPress();
+    await fireEvent.press(screen.getByLabelText('Quitar Press banca'));
+    // El aviso dice su alto él mismo, al pintarse.
+    await fireEvent.layout(screen.getByTestId('aviso-deshacer'), { x: 16, y: 700, width: 358, height: 56 });
+    expect(final()).toBe(32 + 56 + 16);
+  });
+
+  it.each([
+    ['al tocar Deshacer', async () => fireEvent.press(screen.getByText('Deshacer'))],
+    ['solo, a los pocos segundos', async () => dejarPasar(SEGUNDOS_PARA_DESHACER * 1000)],
+  ])('ido el aviso %s, su hueco se queda mientras se vea, y se quita al subir por encima de él', async (_como, irse) => {
+    await abrirElEditor();
+    await apuntarUnPress();
+    await fireEvent.press(screen.getByLabelText('Quitar Press banca'));
+    await fireEvent.layout(screen.getByTestId('aviso-deshacer'), { x: 16, y: 700, width: 358, height: 56 });
+    await irse();
+    await dejarPasar(1000);
+    expect(screen.queryByTestId('aviso-deshacer')).toBeNull();
+    // Si encogiera con la lista al final, la lista saltaría bajo el dedo.
+    expect(final()).toBe(32 + 56 + 16);
+    // Con la lista al final, el hueco se ve: se queda.
+    await desplazar({ hasta: 2000 - 800, de: 2000 });
+    await dejarPasar(1000);
+    expect(final()).toBe(32 + 56 + 16);
+    // Subiendo, mientras se vea aunque sea un punto del hueco, se queda.
+    await desplazar({ hasta: 2000 - 800 - 71, de: 2000 });
+    await dejarPasar(1000);
+    expect(final()).toBe(32 + 56 + 16);
+    // En cuanto queda por debajo de lo que se ve, se quita: así no se mueve nada.
+    await desplazar({ hasta: 2000 - 800 - 72, de: 2000 });
+    expect(final()).toBe(32);
+  });
+
+  it('ido el aviso, bajando no se quita su hueco aunque no se vea: el final encogería con la lista entrando en él', async () => {
+    await abrirElEditor();
+    await apuntarUnPress();
+    await fireEvent.press(screen.getByLabelText('Quitar Press banca'));
+    await fireEvent.layout(screen.getByTestId('aviso-deshacer'), { x: 16, y: 700, width: 358, height: 56 });
+    await desplazar({ hasta: 1000, de: 2000 });
+    await fireEvent.press(screen.getByText('Deshacer'));
+    await dejarPasar(1000);
+    // Bajando hacia el final, con el hueco todavía por debajo de lo que se ve.
+    await desplazar({ hasta: 1050, de: 2000 });
+    await dejarPasar(1000);
+    expect(final()).toBe(32 + 56 + 16);
+    // Subiendo, sí.
+    await desplazar({ hasta: 1000, de: 2000 });
+    expect(final()).toBe(32);
+  });
+
+  it('mientras se ve el aviso, desplazar la lista no quita su hueco, ni siquiera subiendo', async () => {
+    await abrirElEditor();
+    await apuntarUnPress();
+    await fireEvent.press(screen.getByLabelText('Quitar Press banca'));
+    await fireEvent.layout(screen.getByTestId('aviso-deshacer'), { x: 16, y: 700, width: 358, height: 56 });
+    await desplazar({ hasta: 1200, de: 2000 });
+    await desplazar({ hasta: 0, de: 2000 });
+    await dejarPasar(1000);
+    expect(final()).toBe(32 + 56 + 16);
+  });
+
+  it('si llega un aviso más bajo que el anterior mientras se ve, el hueco no encoge', async () => {
+    await abrirElEditor();
+    await apuntarUnPress();
+    await anadir('Espalda', 'Remo con barra');
+    await fireEvent.press(screen.getByLabelText('Quitar Remo con barra'));
+    await fireEvent.layout(screen.getByTestId('aviso-deshacer'), { x: 16, y: 680, width: 358, height: 80 });
+    await fireEvent.press(screen.getByLabelText('Quitar Press banca'));
+    await fireEvent.layout(screen.getByTestId('aviso-deshacer'), { x: 16, y: 700, width: 358, height: 56 });
+    await dejarPasar(1000);
+    expect(final()).toBe(32 + 80 + 16);
+  });
+
+  it('si llega un aviso más alto que el anterior mientras se ve, el hueco crece con él', async () => {
+    await abrirElEditor();
+    await apuntarUnPress();
+    await anadir('Espalda', 'Remo con barra');
+    await fireEvent.press(screen.getByLabelText('Quitar Remo con barra'));
+    await fireEvent.layout(screen.getByTestId('aviso-deshacer'), { x: 16, y: 700, width: 358, height: 56 });
+    await fireEvent.press(screen.getByLabelText('Quitar Press banca'));
+    await fireEvent.layout(screen.getByTestId('aviso-deshacer'), { x: 16, y: 680, width: 358, height: 80 });
+    expect(final()).toBe(32 + 80 + 16);
+  });
+
+  it('con la raya del iPhone abajo, el final y el aviso cuentan con ella', async () => {
+    mockAbajo = 34;
+    await abrirElEditor();
+    expect(final()).toBe(34 + 32);
+    await apuntarUnPress();
+    await fireEvent.press(screen.getByLabelText('Quitar Press banca'));
+    expect(screen.getByTestId('aviso-deshacer')).toHaveStyle({ bottom: 34 + 16 });
+    await fireEvent.layout(screen.getByTestId('aviso-deshacer'), { x: 16, y: 700, width: 358, height: 56 });
+    expect(final()).toBe(34 + 32 + 56 + 16);
+  });
+
+  it('al abrir una serie que no se ve entera, se desplaza hasta verla, por encima de la raya y del aviso, si los hay', async () => {
+    // Las vistas de las pruebas no miden: aquí el panel acaba 100 por debajo del borde de abajo de la ventana.
+    const metodos = jest.requireActual<{ default: { measureInWindow: jest.Mock } }>(
+      '@react-native/jest-preset/jest/MockNativeMethods',
+    ).default;
+    const alto = Dimensions.get('window').height;
+    metodos.measureInWindow.mockImplementation((alMedir: (x: number, y: number, ancho: number, altura: number) => void) =>
+      alMedir(0, alto - 100, 358, 200),
+    );
+    const desplazar = ScrollView.prototype.scrollTo as jest.Mock;
+    const medirElPanel = () =>
+      fireEvent.layout(screen.getByTestId('panel'), { x: 0, y: 0, width: 358, height: 200 });
+    mockAbajo = 34;
+    try {
+      await abrirElEditor();
+      await anadir(null, 'Press banca');
+      desplazar.mockClear();
+      await medirElPanel();
+      // Sin aviso, lo justo para que acabe 16 por encima de la raya.
+      expect(desplazar).toHaveBeenLastCalledWith({ y: 100 + 34 + 16, animated: true });
+
+      // Con el aviso a la vista, de 56, también por encima de él.
+      await anadir('Espalda', 'Remo con barra');
+      await fireEvent.press(screen.getByLabelText('Quitar Remo con barra'));
+      await fireEvent.layout(screen.getByTestId('aviso-deshacer'), { x: 16, y: 700, width: 358, height: 56 });
+      await fireEvent.press(screen.getByRole('button', { name: 'Serie 1: Sin apuntar' }));
+      desplazar.mockClear();
+      await medirElPanel();
+      expect(desplazar).toHaveBeenLastCalledWith({ y: 100 + 34 + 16 + 56 + 16, animated: true });
+
+      // Ido el aviso, ya no cuenta, aunque el final no haya encogido todavía. La serie sigue abierta.
+      await fireEvent.press(screen.getByText('Deshacer'));
+      desplazar.mockClear();
+      await medirElPanel();
+      expect(desplazar).toHaveBeenLastCalledWith({ y: 100 + 34 + 16, animated: true });
+    } finally {
+      metodos.measureInWindow.mockReset();
+    }
   });
 });

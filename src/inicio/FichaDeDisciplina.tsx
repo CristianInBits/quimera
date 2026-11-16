@@ -1,6 +1,6 @@
 import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
-import { Icono } from '@/componentes/Icono';
+import { MarcaDeDisciplina } from '@/componentes/MarcaDeDisciplina';
 import { NOMBRE_DE_DISCIPLINA, type Disciplina } from '@/datos/entrenos';
 import { textoDeMinutos } from '@/gimnasio/editor';
 import { cifra } from '@/inicio/comparar';
@@ -18,8 +18,6 @@ export function FichaDeDisciplina({ disciplina, minutos }: { disciplina: Discipl
   const { fontScale } = useWindowDimensions();
   const colores = paleta.disciplina[disciplina];
   const nombre = NOMBRE_DE_DISCIPLINA[disciplina];
-  // Encima del rosa del gimnasio, el icono va en la tinta de encima del rosa, como la maqueta.
-  const tinta = colores.marca === paleta.primario ? paleta.sobrePrimario : paleta.sobreMarca;
   return (
     <View
       accessible
@@ -30,10 +28,7 @@ export function FichaDeDisciplina({ disciplina, minutos }: { disciplina: Discipl
       ]}
     >
       <View style={estilos.cabecera}>
-        {/* Sin ancho fijo: crece con el icono, que crece con la letra. */}
-        <View testID="marca-de-disciplina" style={[estilos.marca, { backgroundColor: colores.marca }]}>
-          <Icono nombre={disciplina} color={tinta} tamano={18} />
-        </View>
+        <MarcaDeDisciplina disciplina={disciplina} />
         <Text style={[estilos.nombre, { color: paleta.texto }]}>{nombre}</Text>
       </View>
       <Text style={{ color: paleta.texto }}>
@@ -58,14 +53,6 @@ const estilos = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: espacio[2],
-  },
-  marca: {
-    minWidth: 28,
-    minHeight: 28,
-    padding: 5,
-    borderRadius: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   nombre: {
     flexShrink: 1,

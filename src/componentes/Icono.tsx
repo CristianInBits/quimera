@@ -40,19 +40,34 @@ export type NombreDeIcono = keyof typeof ICONOS;
  * El peso va como texto: el iPhone lo usa, y Android usa el normal, el que ya
  * trae la barra de pestañas. Pedir en Android un peso como objeto metería esa
  * fuente, de casi un mega, también en la app del iPhone, que no la usa.
+ *
+ * Con escalaMaxima, no crece más que eso con la letra del sistema, como el
+ * de la cabecera, que no crece con ella.
  */
-export function Icono({ nombre, color, tamano = 20 }: { nombre: NombreDeIcono; color: ColorValue; tamano?: number }) {
+export function Icono({
+  nombre,
+  color,
+  tamano = 20,
+  escalaMaxima,
+}: {
+  nombre: NombreDeIcono;
+  color: ColorValue;
+  tamano?: number;
+  escalaMaxima?: number;
+}) {
   const { fontScale } = useWindowDimensions();
   const { ios, android } = ICONOS[nombre];
-  const lado = tamano * fontScale;
+  const escala = escalaMaxima === undefined ? fontScale : Math.min(fontScale, escalaMaxima);
+  const lado = tamano * escala;
   return (
     <SymbolView
       testID={`icono-${nombre}`}
       name={{ ios, android, web: android }}
       weight="semibold"
       tintColor={color}
-      // En Android la letra ya crece sola con el sistema: con «lado» crecería dos veces.
-      size={Platform.OS === 'android' ? tamano : lado}
+      // En Android la letra ya crece sola con el sistema, por fontScale: se le pide lo que falta
+      // para llegar a «lado», o crecería dos veces.
+      size={Platform.OS === 'android' ? (tamano * escala) / fontScale : lado}
       style={{ width: lado, height: lado }}
       accessible={false}
       accessibilityElementsHidden
