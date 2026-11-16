@@ -8,11 +8,11 @@ describe('La mascota', () => {
     expect([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(tramoDeLaMascota)).toEqual([1, 1, 2, 2, 3, 3, 4, 4, 5, 5]);
   });
 
-  it('sin esfuerzo sale el dibujo de presentación, que Android decodifica ya reducido', async () => {
+  it('sin esfuerzo sale el dibujo de presentación, que ya mide lo que ocupa: Android no lo reduce otra vez', async () => {
     await render(<Mascota disciplina="gimnasio" tamano={96} />);
     const mascota = screen.getByTestId('mascota');
     expect(mascota.props.source.testUri).toMatch(/rinoceronte\.png$/);
-    expect(mascota.props.resizeMethod).toBe('resize');
+    expect(mascota.props.resizeMethod).toBe('scale');
   });
 
   it.each([
@@ -21,14 +21,25 @@ describe('La mascota', () => {
     [6, 'rinoceronte-3.png'],
     [8, 'rinoceronte-4.png'],
     [10, 'rinoceronte-5.png'],
-  ])('con un esfuerzo de %i sale %s', async (esfuerzo, dibujo) => {
+  ])('con un esfuerzo de %i sale %s, que Android decodifica ya reducido', async (esfuerzo, dibujo) => {
     await render(<Mascota disciplina="gimnasio" esfuerzo={esfuerzo} tamano={96} />);
     expect(screen.getByTestId('mascota').props.source.testUri.endsWith(dibujo)).toBe(true);
+    expect(screen.getByTestId('mascota').props.resizeMethod).toBe('resize');
   });
 
-  it('una disciplina que aún no tiene sus dibujos no saca nada', async () => {
+  it('una disciplina que aún no tiene los dibujos de cada esfuerzo no saca nada con un esfuerzo', async () => {
     await render(<Mascota disciplina="hyrox" esfuerzo={5} tamano={96} />);
     expect(screen.queryByTestId('mascota')).toBeNull();
+  });
+
+  it.each([
+    ['hyrox', 'tigre.png'],
+    ['calistenia', 'gorila.png'],
+    ['carrera', 'galgo.png'],
+    ['natacion', 'foca.png'],
+  ] as const)('%s ya tiene su dibujo de presentación: %s', async (disciplina, fichero) => {
+    await render(<Mascota disciplina={disciplina} tamano={96} />);
+    expect(screen.getByTestId('mascota').props.source.testUri).toMatch(new RegExp(`/${fichero.replace('.', '\\.')}$`));
   });
 
   it('con alto, la caja deja de ser cuadrada, y el estilo propio va encima', async () => {

@@ -1,4 +1,4 @@
-import { act, fireEvent, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, waitFor, within } from '@testing-library/react-native';
 import { renderRouter, screen, testRouter } from 'expo-router/testing-library';
 import { AccessibilityInfo, Alert } from 'react-native';
 
@@ -132,6 +132,24 @@ describe('Apuntar un entreno de gimnasio', () => {
     await testRouter.back('/apuntar');
     await dejarPasar();
     expect(enElBorrador().bloques[0].vueltas[0][0]).toMatchObject({ peso: '60', repeticiones: '8' });
+  });
+
+  it('al descartar un entreno retomado, Apuntar deja de decir que hay uno a medias', async () => {
+    const alerta = espiar(jest.spyOn(Alert, 'alert'));
+    const app = await abrirElEditor();
+    await apuntarUnPress();
+    await dejarPasar();
+    await testRouter.back('/apuntar');
+    await fireEvent.press(await screen.findByLabelText('Gimnasio, tienes uno a medias'));
+    await screen.findByText('60 kg × 8');
+    await fireEvent.press(screen.getByText('Descartar este entreno'));
+    const botones = alerta.mock.calls[alerta.mock.calls.length - 1][2] ?? [];
+    await act(async () => botones.find((b) => b.text === 'Descartar')?.onPress?.());
+    await dejarPasar();
+    expect(app.getPathname()).toBe('/apuntar');
+    // Apuntar vuelve a leer el borrador al enfocarse: ya no hay ninguno.
+    expect(await screen.findByRole('button', { name: 'Gimnasio' })).toBeOnTheScreen();
+    expect(screen.queryByText('Tienes uno a medias: sigue donde lo dejaste')).toBeNull();
   });
 
   it('al volver al editor, el borrador sigue ahí', async () => {
@@ -473,10 +491,18 @@ describe('Apuntar un entreno de gimnasio', () => {
     ]);
   });
 
-  it('el rinoceronte sale en Apuntar junto al gimnasio', async () => {
+  it('en Apuntar, cada disciplina sale con su mascota: el rinoceronte junto al gimnasio y las demás junto a las suyas', async () => {
     await renderRouter(RUTAS, { initialUrl: '/apuntar' });
-    const mascotas = await screen.findAllByTestId('mascota');
-    expect(mascotas.map((mascota) => mascota.props.source.testUri)).toEqual([expect.stringMatching(/rinoceronte\.png$/)]);
+    await screen.findByLabelText('Hyrox, pronto');
+    // Las mascotas son decorativas: el lector de pantalla las salta, y la prueba las busca igual.
+    const dibujoDe = (nombre: string | RegExp) =>
+      within(screen.getByRole('button', { name: nombre })).getByTestId('mascota', { includeHiddenElements: true }).props
+        .source.testUri;
+    expect(dibujoDe(/^Gimnasio/)).toMatch(/rinoceronte\.png$/);
+    expect(dibujoDe('Hyrox, pronto')).toMatch(/tigre\.png$/);
+    expect(dibujoDe('Calistenia, pronto')).toMatch(/gorila\.png$/);
+    expect(dibujoDe('Carrera, pronto')).toMatch(/galgo\.png$/);
+    expect(dibujoDe('Natación, pronto')).toMatch(/foca\.png$/);
   });
 
   it('en el editor, el rinoceronte cambia con el esfuerzo', async () => {

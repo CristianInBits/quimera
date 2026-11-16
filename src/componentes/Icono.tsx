@@ -12,6 +12,7 @@ const ICONOS = {
   enlazar: { ios: 'link', android: 'link' },
   calendario: { ios: 'calendar', android: 'calendar_today' },
   reloj: { ios: 'clock', android: 'schedule' },
+  siguiente: { ios: 'chevron.right', android: 'chevron_right' },
   // Los de cada disciplina, para su ficha.
   gimnasio: { ios: 'dumbbell', android: 'fitness_center' },
   hyrox: { ios: 'bolt', android: 'bolt' },

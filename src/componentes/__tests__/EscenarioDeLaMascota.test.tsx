@@ -21,8 +21,9 @@ describe('El escenario de una mascota', () => {
     expect(screen.getByTestId('mascota', ocultos)).toBeOnTheScreen();
   });
 
-  it('los círculos son los de la disciplina que se le da, también sin dibujo', async () => {
-    await render(<EscenarioDeLaMascota disciplina="hyrox" tamano={156} />);
+  it('los círculos son los de la disciplina que se le da, y sin dibujo de ese esfuerzo no sale ninguno', async () => {
+    // El hyrox ya tiene su tigre de presentación, pero aún no los de cada esfuerzo.
+    await render(<EscenarioDeLaMascota disciplina="hyrox" esfuerzo={5} tamano={156} />);
     const [fuera, dentro] = piezas();
     expect(fuera).toMatchObject({ backgroundColor: PALETAS.claro.disciplina.hyrox.escenario[0] });
     expect(dentro).toMatchObject({ backgroundColor: PALETAS.claro.disciplina.hyrox.escenario[1] });

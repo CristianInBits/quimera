@@ -2,24 +2,36 @@ import { Image, type ImageSourcePropType, type ImageStyle, type StyleProp } from
 
 import type { Disciplina } from '@/datos/entrenos';
 
+import foca from '../../assets/mascotas/foca.png';
+import galgo from '../../assets/mascotas/galgo.png';
+import gorila from '../../assets/mascotas/gorila.png';
 import rinoceronte from '../../assets/mascotas/rinoceronte.png';
 import rinoceronte1 from '../../assets/mascotas/rinoceronte-1.png';
 import rinoceronte2 from '../../assets/mascotas/rinoceronte-2.png';
 import rinoceronte3 from '../../assets/mascotas/rinoceronte-3.png';
 import rinoceronte4 from '../../assets/mascotas/rinoceronte-4.png';
 import rinoceronte5 from '../../assets/mascotas/rinoceronte-5.png';
+import tigre from '../../assets/mascotas/tigre.png';
 
 /**
  * Los dibujos del animal de cada disciplina: el de presentación y uno por
- * tramo de esfuerzo, la misma acción con más compromiso en cada uno. Por ahora
- * solo está el rinoceronte del gimnasio; los demás llegan con su disciplina, y
- * mientras falten, en su sitio no sale nada.
+ * tramo de esfuerzo, la misma acción con más compromiso en cada uno. Todas
+ * tienen ya el de presentación, que sale en Apuntar; los de esfuerzo llegan
+ * con su disciplina, y mientras falten, en su sitio no sale nada.
+ *
+ * Los de presentación miden 672 píxeles de lado mayor, lo que ocupan a 224
+ * puntos en un móvil de 3 píxeles por punto, todos con el mismo margen debajo
+ * de los pies, y van sin metadatos.
  */
-const DIBUJOS: Partial<Record<Disciplina, { presentacion: ImageSourcePropType; tramos: readonly ImageSourcePropType[] }>> = {
+const DIBUJOS: Record<Disciplina, { presentacion: ImageSourcePropType; tramos?: readonly ImageSourcePropType[] }> = {
   gimnasio: {
     presentacion: rinoceronte,
     tramos: [rinoceronte1, rinoceronte2, rinoceronte3, rinoceronte4, rinoceronte5],
   },
+  hyrox: { presentacion: tigre },
+  calistenia: { presentacion: gorila },
+  carrera: { presentacion: galgo },
+  natacion: { presentacion: foca },
 };
 
 /**
@@ -42,9 +54,11 @@ export function tramoDeLaMascota(esfuerzo: number): number {
  * lado siempre están el nombre de la disciplina o el número del esfuerzo, así
  * que los lectores de pantalla lo saltan.
  *
- * Los dibujos son mucho más grandes que el sitio donde salen: en Android,
+ * Los de cada esfuerzo son más grandes que el sitio donde salen: en Android,
  * resizeMethod «resize» los decodifica ya reducidos, que gasta menos memoria y
- * deja los trazos más limpios, y sin fundido cada tramo sale al momento.
+ * deja los trazos más limpios. Los de presentación ya miden lo que ocupan:
+ * reducirlos otra vez los dejaría borrosos, así que se decodifican enteros.
+ * Sin fundido, cada dibujo sale al momento.
  */
 export function Mascota({
   disciplina,
@@ -61,25 +75,21 @@ export function Mascota({
   /** Dónde va la caja, por ejemplo encima de su escenario. */
   style?: StyleProp<ImageStyle>;
 }) {
-  const dibujos = DIBUJOS[disciplina];
-  if (dibujos === undefined) {
+  const { presentacion, tramos } = DIBUJOS[disciplina];
+  const dibujo = esfuerzo === null ? presentacion : tramos?.[tramoDeLaMascota(esfuerzo) - 1];
+  if (dibujo === undefined) {
     return null;
   }
   return (
     <Image
       testID="mascota"
-      source={esfuerzo === null ? dibujos.presentacion : dibujos.tramos[tramoDeLaMascota(esfuerzo) - 1]}
+      source={dibujo}
       resizeMode="contain"
-      resizeMethod="resize"
+      resizeMethod={esfuerzo === null ? 'scale' : 'resize'}
       fadeDuration={0}
       accessibilityIgnoresInvertColors
       importantForAccessibility="no"
       style={[{ width: tamano, height: alto }, style]}
     />
   );
-}
-
-/** Si hay dibujos de la mascota de una disciplina. */
-export function tieneMascota(disciplina: Disciplina): boolean {
-  return DIBUJOS[disciplina] !== undefined;
 }

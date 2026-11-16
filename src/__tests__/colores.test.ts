@@ -86,6 +86,7 @@ function fondosDeTexto(paleta: Paleta): string[] {
     paleta.campo,
     paleta.tintePrimario,
     paleta.insignia,
+    paleta.pastilla,
     paleta.barraDePestanas,
     ...tintes(paleta),
   ];
