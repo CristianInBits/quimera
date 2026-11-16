@@ -65,8 +65,8 @@ export function CampoDeFecha({
         {hora === null ? '' : `, ${hora}`}
       </Text>
       <View style={estilos.botones}>
-        <Boton titulo="Cambiar el día" alPulsar={() => abrir('date')} variante="sutil" />
-        <Boton titulo="Cambiar la hora" alPulsar={() => abrir('time')} variante="sutil" />
+        <Boton titulo="Cambiar el día" icono="calendario" variante="tonal" alPulsar={() => abrir('date')} />
+        <Boton titulo="Cambiar la hora" icono="reloj" variante="tonal" alPulsar={() => abrir('time')} />
       </View>
       {Platform.OS === 'ios' && enIos !== null && (
         <DateTimePicker
@@ -90,9 +90,10 @@ const estilos = StyleSheet.create({
   valor: {
     fontSize: texto.l,
   },
+  // Con la letra grande, «Cambiar la hora» baja a otra línea en vez de cortarse.
   botones: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: espacio[2],
-    marginLeft: -espacio[4],
   },
 });

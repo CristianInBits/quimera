@@ -120,6 +120,25 @@ export const PALETAS: Record<'claro' | 'oscuro', Paleta> = {
   },
 };
 
+/**
+ * La sombra de las tarjetas. Las de cada bloque llevan en claro una leve,
+ * teñida de rosa, y en oscuro ninguna: la tarjeta ya se separa por su
+ * superficie. La destacada, como la de la semana en Inicio, lleva una más
+ * marcada en los dos modos.
+ */
+export function sombraDeTarjeta(paleta: Paleta, destacada = false): string | undefined {
+  const clara = paleta === PALETAS.claro;
+  if (destacada) {
+    return clara ? '0 1px 2px rgba(35, 25, 31, 0.05), 0 8px 24px rgba(194, 24, 91, 0.08)' : '0 12px 32px rgba(0, 0, 0, 0.35)';
+  }
+  return clara ? '0 1px 2px rgba(35, 25, 31, 0.05), 0 6px 20px rgba(194, 24, 91, 0.07)' : undefined;
+}
+
+/** La sombra del botón principal, del color del rosa de cada modo. */
+export function sombraDelBotonPrincipal(paleta: Paleta): string {
+  return paleta === PALETAS.claro ? '0 8px 20px rgba(194, 24, 91, 0.28)' : '0 8px 24px rgba(240, 106, 168, 0.22)';
+}
+
 /** La paleta del modo que tiene el móvil ahora. */
 export function usePaleta(): Paleta {
   return PALETAS[useColorScheme() === 'dark' ? 'oscuro' : 'claro'];

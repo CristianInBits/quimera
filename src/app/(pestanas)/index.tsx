@@ -4,6 +4,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Boton } from '@/componentes/Boton';
+import { Tarjeta } from '@/componentes/Tarjeta';
 import { useHoy } from '@/componentes/useHoy';
 import { leerCargaDeInicio, type CargaDeInicio } from '@/datos/carga';
 import { NOMBRE_DE_DISCIPLINA } from '@/datos/entrenos';
@@ -12,7 +13,7 @@ import { usePuerta } from '@/datos/usarBase';
 import { textoDeMinutos } from '@/gimnasio/editor';
 import { cifra, compararConLaPasada } from '@/inicio/comparar';
 import { usePaleta } from '@/tema/colores';
-import { datos, espacio, radio, texto, titulos } from '@/tema/medidas';
+import { datos, espacio, texto, titulos } from '@/tema/medidas';
 
 // La pantalla de inicio: cómo va la semana y, debajo, el botón para apuntar un
 // entreno. Las dos pestañas están montadas a la vez, así que la carga se
@@ -57,7 +58,7 @@ export default function Inicio() {
           <Text style={[estilos.lema, { color: paleta.textoTenue }]}>Tus entrenos, en tu móvil.</Text>
         </View>
         <EstaSemana carga={carga} error={error} />
-        <Boton titulo="Apuntar un entreno" variante="principal" alPulsar={() => router.navigate('/apuntar')} />
+        <Boton titulo="Apuntar un entreno" icono="mas" variante="principal" alPulsar={() => router.navigate('/apuntar')} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -84,7 +85,7 @@ function EstaSemana({ carga, error }: { carga: CargaDeInicio | null; error: stri
       )}
       {carga !== null && carga.hayEntrenos && (
         <>
-          <View style={[estilos.tarjeta, { backgroundColor: paleta.superficie }]}>
+          <Tarjeta destacada relleno={espacio[5]} style={estilos.tarjeta}>
             <View accessible accessibilityLabel={`Carga de esta semana: ${cifra(carga.estaSemana.carga)}`} style={estilos.carga}>
               <Text dynamicTypeRamp="largeTitle" style={[datos, estilos.cifra, { color: paleta.texto }]}>
                 {cifra(carga.estaSemana.carga)}
@@ -109,7 +110,7 @@ function EstaSemana({ carga, error }: { carga: CargaDeInicio | null; error: stri
                 </View>
               </View>
             ))}
-          </View>
+          </Tarjeta>
           <Text style={[estilos.nota, { color: paleta.textoTenue }]}>
             Minutos por esfuerzo. Compara tus semanas entre sí, no unas disciplinas con otras.
           </Text>
@@ -146,8 +147,6 @@ const estilos = StyleSheet.create({
     fontSize: texto.m,
   },
   tarjeta: {
-    borderRadius: radio.tarjeta,
-    padding: espacio[4],
     gap: espacio[3],
   },
   carga: {

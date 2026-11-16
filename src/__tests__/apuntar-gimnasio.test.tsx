@@ -12,6 +12,7 @@ import { p } from '@/datos/base';
 import * as entrenos from '@/datos/entrenos';
 import type { BaseDePrueba } from '@/pruebas/baseDePrueba';
 import { T0, abrirBasePreparada } from '@/pruebas/datos';
+import { PALETAS } from '@/tema/colores';
 
 // La pantalla de verdad sobre la base de prueba: la base que daría
 // expo-sqlite es la de node:sqlite, y los identificadores salen del generador
@@ -59,12 +60,12 @@ async function abrirElEditor() {
   const app = await renderRouter(RUTAS, { initialUrl: '/' });
   await fireEvent.press(await screen.findByText('Apuntar un entreno'));
   await fireEvent.press(await screen.findByLabelText('Gimnasio'));
-  await screen.findByText('+ Añadir ejercicio');
+  await screen.findByText('Añadir ejercicio');
   return app;
 }
 
 async function anadir(grupo: string | null, ejercicio: string) {
-  await fireEvent.press(screen.getByText('+ Añadir ejercicio'));
+  await fireEvent.press(screen.getByText('Añadir ejercicio'));
   if (grupo !== null) await fireEvent.press(await screen.findByText(grupo));
   await fireEvent.press(await screen.findByText(ejercicio));
 }
@@ -222,11 +223,11 @@ describe('Apuntar un entreno de gimnasio', () => {
   it('con las series marcadas como hechas, la duración se mide sola', async () => {
     const app = await abrirElEditor();
     await apuntarUnPress();
-    await fireEvent.press(screen.getByText('Hecha ✓'));
+    await fireEvent.press(screen.getByText('Hecha'));
     await fireEvent.press(screen.getByLabelText('Añadir una serie de Press banca'));
     await fireEvent.press(await screen.findByText('Igual que la anterior (60 kg × 8)'));
     await dejarPasar(20 * 60_000);
-    await fireEvent.press(screen.getByText('Hecha ✓'));
+    await fireEvent.press(screen.getByText('Hecha'));
     await fireEvent.press(screen.getByLabelText('8, duro'));
     expect(screen.getByText('20 minutos entre la primera serie hecha y la última. Si fue más, escríbelo.')).toBeOnTheScreen();
     await fireEvent.press(screen.getByText('Guardar'));
@@ -259,7 +260,7 @@ describe('Apuntar un entreno de gimnasio', () => {
     // Al marcar hecho el press de una vuelta, se abre el remo de la misma vuelta.
     await fireEvent.press(screen.getByLabelText('Añadir una vuelta a la superserie de Press banca y Remo con barra'));
     await fireEvent.press(await screen.findByText('Igual que la anterior (60 kg × 8)'));
-    await fireEvent.press(screen.getByText('Hecha ✓'));
+    await fireEvent.press(screen.getByText('Hecha'));
     // El botón desaparece: el lector de pantalla dice adónde se ha ido.
     expect(anuncio).toHaveBeenCalledWith('Hecha. Ahora, Remo con barra, vuelta 2.');
     await fireEvent.press(await screen.findByText('Igual que la anterior (50 kg × 10)'));
@@ -293,7 +294,7 @@ describe('Apuntar un entreno de gimnasio', () => {
     await abrirElEditor();
     await anadir('Brazo', 'Curl con mancuernas');
     // El segundo: el nombre sale ya en el editor, y el de la lista va detrás.
-    await fireEvent.press(screen.getByText('+ Añadir ejercicio'));
+    await fireEvent.press(screen.getByText('Añadir ejercicio'));
     const enLaLista = await screen.findAllByText('Curl con mancuernas');
     await fireEvent.press(enLaLista[enLaLista.length - 1]);
     await fireEvent.press(screen.getByText('Enlazar en superserie con Curl con mancuernas'));
@@ -318,7 +319,7 @@ describe('Apuntar un entreno de gimnasio', () => {
 
   it('la carrera en cinta se apunta con su distancia y sus minutos, y se guarda como un bloque de carrera', async () => {
     const app = await abrirElEditor();
-    await fireEvent.press(screen.getByText('+ Carrera en cinta'));
+    await fireEvent.press(screen.getByLabelText('Añadir una carrera en cinta, como el calentamiento'));
     await fireEvent.press(screen.getByLabelText('Subir Distancia de la carrera en cinta, en kilómetros'));
     await fireEvent.press(screen.getByLabelText('Subir Distancia de la carrera en cinta, en kilómetros'));
     expect(screen.getByLabelText('Distancia de la carrera en cinta, en kilómetros').props.value).toBe('1');
@@ -338,7 +339,7 @@ describe('Apuntar un entreno de gimnasio', () => {
 
   it('una carrera sin distancia no se guarda, y lo dice', async () => {
     await abrirElEditor();
-    await fireEvent.press(screen.getByText('+ Carrera en cinta'));
+    await fireEvent.press(screen.getByLabelText('Añadir una carrera en cinta, como el calentamiento'));
     await fireEvent.changeText(screen.getByLabelText('Tiempo de la carrera en cinta, en minutos'), '10');
     await fireEvent.press(screen.getByLabelText('3, suave'));
     await fireEvent.changeText(screen.getByLabelText('Duración en minutos'), '15');
@@ -350,7 +351,7 @@ describe('Apuntar un entreno de gimnasio', () => {
 
   it('el descanso antes del siguiente se apunta en la carrera y en un ejercicio, y el último bloque no lo enseña', async () => {
     const app = await abrirElEditor();
-    await fireEvent.press(screen.getByText('+ Carrera en cinta'));
+    await fireEvent.press(screen.getByLabelText('Añadir una carrera en cinta, como el calentamiento'));
     await fireEvent.changeText(screen.getByLabelText('Distancia de la carrera en cinta, en kilómetros'), '2');
     // Sola, la carrera es el último bloque: no tiene descansos que apuntar.
     expect(screen.queryByLabelText(/^Descansos de la carrera en cinta/)).toBeNull();
@@ -423,7 +424,7 @@ describe('Apuntar un entreno de gimnasio', () => {
 
   it('quitar la carrera se puede deshacer, y quitar una vuelta de una superserie quita solo esa vuelta', async () => {
     await abrirElEditor();
-    await fireEvent.press(screen.getByText('+ Carrera en cinta'));
+    await fireEvent.press(screen.getByLabelText('Añadir una carrera en cinta, como el calentamiento'));
     await fireEvent.changeText(screen.getByLabelText('Distancia de la carrera en cinta, en kilómetros'), '2');
     await fireEvent.press(screen.getByLabelText('Quitar la carrera en cinta'));
     expect(screen.queryByLabelText('Distancia de la carrera en cinta, en kilómetros')).toBeNull();
@@ -444,7 +445,7 @@ describe('Apuntar un entreno de gimnasio', () => {
 
   it('enlazar no mueve ni quita la carrera de delante ni el ejercicio de detrás', async () => {
     const app = await abrirElEditor();
-    await fireEvent.press(screen.getByText('+ Carrera en cinta'));
+    await fireEvent.press(screen.getByLabelText('Añadir una carrera en cinta, como el calentamiento'));
     await fireEvent.changeText(screen.getByLabelText('Distancia de la carrera en cinta, en kilómetros'), '2');
     await anadir(null, 'Press banca');
     await fireEvent.changeText(await screen.findByLabelText('Repeticiones'), '8');
@@ -480,7 +481,7 @@ describe('Apuntar un entreno de gimnasio', () => {
 
   it('en el editor, el rinoceronte cambia con el esfuerzo', async () => {
     await renderRouter(RUTAS, { initialUrl: '/apuntar/gimnasio' });
-    await screen.findByText('+ Añadir ejercicio');
+    await screen.findByText('Añadir ejercicio');
     const dibujo = () => screen.getByTestId('mascota').props.source.testUri;
     expect(dibujo()).toMatch(/rinoceronte\.png$/);
     await fireEvent.press(screen.getByLabelText('7, duro'));
@@ -526,5 +527,15 @@ describe('Apuntar un entreno de gimnasio', () => {
     expect(app.getPathname()).toBe('/apuntar');
     await fireEvent.press(screen.getByLabelText('Gimnasio'));
     await waitFor(() => expect(app.getPathname()).toBe('/apuntar/gimnasio'));
+  });
+
+  it('la serie abierta se distingue de las demás: va en el rosa suave y con el borde rosa', async () => {
+    await abrirElEditor();
+    await anadir(null, 'Press banca');
+    expect(await screen.findByTestId('serie-abierta')).toHaveStyle({
+      backgroundColor: PALETAS.claro.tintePrimario,
+      borderColor: PALETAS.claro.primario,
+      borderWidth: 2,
+    });
   });
 });

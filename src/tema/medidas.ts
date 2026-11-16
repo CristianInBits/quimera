@@ -3,14 +3,18 @@ import type { TextStyle } from 'react-native';
 // Los tamaños de Quimera. Se usa de pie, con una mano y sudando: nada que se
 // toque mide menos de 48 puntos.
 
-export const espacio = { 1: 4, 2: 8, 3: 12, 4: 16, 6: 24, 8: 32 } as const;
+export const espacio = { 1: 4, 2: 8, 3: 12, 4: 16, 5: 20, 6: 24, 8: 32 } as const;
 
 /** Las esquinas, más redondas cuanto más grande es la pieza. */
 export const radio = {
+  /** Botones de solo texto y filas que se tocan. */
+  pequeno: 14,
   /** Campos, cifras del esfuerzo y botones pequeños. */
   control: 16,
-  /** Botones, avisos y grupos dentro de una tarjeta. */
+  /** Botones con borde, avisos y grupos dentro de una tarjeta. */
   boton: 18,
+  /** El botón principal. */
+  grande: 20,
   /** Tarjetas. */
   tarjeta: 24,
 } as const;

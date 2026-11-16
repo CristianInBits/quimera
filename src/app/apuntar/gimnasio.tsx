@@ -380,12 +380,12 @@ export default function ApuntarGimnasio() {
             );
           })}
 
-          <Boton titulo="+ Añadir ejercicio" variante="secundario" color={color} alPulsar={() => setEligiendo(true)} />
+          <Boton titulo="Añadir ejercicio" icono="mas" variante="secundario" alPulsar={() => setEligiendo(true)} />
           <Boton
-            titulo="+ Carrera en cinta"
+            titulo="Carrera en cinta"
             etiqueta="Añadir una carrera en cinta, como el calentamiento"
-            variante="sutil"
-            color={color}
+            icono="mas"
+            variante="enlace"
             alPulsar={() => {
               const id = nuevoId();
               cambiar((e) => anadirCarrera(empezarAhoraSiVacio(e, new Date()), id));
@@ -462,7 +462,6 @@ export default function ApuntarGimnasio() {
             <Boton
               titulo="Guardarlo como un entreno nuevo"
               variante="secundario"
-              color={color}
               deshabilitado={guardando}
               alPulsar={() => void guardar(true)}
             />
@@ -470,14 +469,12 @@ export default function ApuntarGimnasio() {
           <Boton
             titulo={guardando ? 'Guardando' : corrigiendo ? 'Guardar los cambios' : 'Guardar'}
             variante="principal"
-            color={color}
             deshabilitado={guardando}
             alPulsar={() => void guardar()}
           />
           <Boton
             titulo={corrigiendo ? 'Descartar los cambios' : 'Descartar este entreno'}
-            variante="sutil"
-            color={paleta.error}
+            variante="error"
             alPulsar={descartar}
           />
         </ScrollView>

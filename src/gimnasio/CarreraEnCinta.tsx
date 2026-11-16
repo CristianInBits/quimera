@@ -2,8 +2,9 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Boton } from '@/componentes/Boton';
 import { CampoConPasos } from '@/componentes/CampoConPasos';
+import { Tarjeta } from '@/componentes/Tarjeta';
 import { usePaleta } from '@/tema/colores';
-import { espacio, radio, titulos } from '@/tema/medidas';
+import { espacio, titulos } from '@/tema/medidas';
 
 import { Descansos } from './Descansos';
 import {
@@ -39,7 +40,7 @@ export function CarreraEnCinta({
 }) {
   const paleta = usePaleta();
   return (
-    <View style={[estilos.bloque, { borderColor: paleta.textoTenue }]}>
+    <Tarjeta relleno={0} style={estilos.bloque}>
       <View style={estilos.cabecera}>
         <Text accessibilityRole="header" style={[estilos.titulo, { color: paleta.texto }]}>
           Carrera en cinta
@@ -48,7 +49,6 @@ export function CarreraEnCinta({
           titulo="Quitar"
           etiqueta={`Quitar ${nombre.enFrase}`}
           variante="sutil"
-          color={paleta.textoTenue}
           alPulsar={() => conDeshacer(`${nombre.alEmpezar} quitada`, (e) => quitarBloque(e, bloque.id))}
         />
       </View>
@@ -76,14 +76,12 @@ export function CarreraEnCinta({
         despues={ultimo ? null : bloque.descansoDespues}
         cambiar={cambiar}
       />
-    </View>
+    </Tarjeta>
   );
 }
 
 const estilos = StyleSheet.create({
   bloque: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radio.tarjeta,
     paddingVertical: espacio[2],
     gap: espacio[2],
   },

@@ -3,6 +3,7 @@ import { AccessibilityInfo, Pressable, StyleSheet, Text, View } from 'react-nati
 
 import { Boton } from '@/componentes/Boton';
 import { CampoConPasos } from '@/componentes/CampoConPasos';
+import { Tarjeta } from '@/componentes/Tarjeta';
 import type { Medida } from '@/datos/catalogo';
 import type { Ejercicio } from '@/datos/ejercicios';
 import { horaDeInstante } from '@/datos/fechas';
@@ -110,7 +111,7 @@ export function BloqueDeEjercicio({
   });
 
   return (
-    <View style={[estilos.bloque, { borderColor: paleta.textoTenue }]}>
+    <Tarjeta relleno={0} style={estilos.bloque}>
       <View style={estilos.cabecera}>
         <View style={estilos.nombre}>
           {superserie && <Text style={[estilos.insignia, { color }]}>SUPERSERIE</Text>}
@@ -128,7 +129,6 @@ export function BloqueDeEjercicio({
             titulo="Separar"
             etiqueta={`Separar ${nombre.enFrase}`}
             variante="sutil"
-            color={paleta.textoTenue}
             alPulsar={() => conDeshacer('Superserie separada', (e) => separar(e, bloque.id, nuevoId))}
           />
         )}
@@ -136,7 +136,6 @@ export function BloqueDeEjercicio({
           titulo="Quitar"
           etiqueta={`Quitar ${nombre.enFrase}`}
           variante="sutil"
-          color={paleta.textoTenue}
           alPulsar={() =>
             conDeshacer(`${nombre.alEmpezar} ${superserie ? 'quitada' : 'quitado'}`, (e) => quitarBloque(e, bloque.id))
           }
@@ -151,13 +150,18 @@ export function BloqueDeEjercicio({
             const ejercicio = ejercicios[c];
             const resumen = resumenDeSerie(serie);
             return (
-              <View key={serie.id}>
+              // La serie abierta y su panel van juntos, en el rosa suave y con el borde rosa.
+              <View
+                key={serie.id}
+                testID={abierta ? 'serie-abierta' : undefined}
+                style={abierta && [estilos.abierta, { backgroundColor: paleta.tintePrimario, borderColor: paleta.primario }]}
+              >
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={`${superserie ? `Vuelta ${v + 1}, ${nombre.ejercicios[c]}` : `Serie ${v + 1}`}: ${resumen}${serie.hecha !== null ? ', hecha' : ''}`}
                   accessibilityState={{ expanded: abierta }}
                   onPress={() => alElegir(abierta ? null : serie.id)}
-                  style={[estilos.fila, abierta && { backgroundColor: paleta.superficie }]}
+                  style={estilos.fila}
                 >
                   <Text style={[datos, estilos.numero, { color: paleta.textoTenue }]}>{c === 0 ? v + 1 : ''}</Text>
                   {superserie && (
@@ -183,11 +187,12 @@ export function BloqueDeEjercicio({
                     onLayout={() =>
                       panel.current?.measureInWindow((_x, y, _ancho, alto) => asegurarVisible(y, alto))
                     }
-                    style={[estilos.panel, { backgroundColor: paleta.superficie }]}
+                    style={estilos.panel}
                   >
                     {anterior !== undefined && !serieVaciaDeDatos(anterior) && (
                       <Boton
                         titulo={`Igual que la anterior (${resumenDeSerie(anterior)})`}
+                        variante="contorno"
                         alPulsar={() => cambiar((e) => igualQueLaAnterior(e, bloque.id, serie.id))}
                       />
                     )}
@@ -203,9 +208,9 @@ export function BloqueDeEjercicio({
                     ))}
                     <View style={estilos.acciones}>
                       <Boton
-                        titulo={serie.hecha === null ? 'Hecha ✓' : `Hecha a las ${horaDeInstante(serie.hecha)}: quitar ✓`}
+                        titulo={serie.hecha === null ? 'Hecha' : `Hecha a las ${horaDeInstante(serie.hecha)}: quitar la marca`}
+                        icono="hecha"
                         variante={serie.hecha === null ? 'principal' : 'secundario'}
-                        color={color}
                         alPulsar={() => {
                           cambiar((e) => marcarHecha(e, bloque.id, serie.id, serie.hecha === null ? Date.now() : null));
                           if (serie.hecha !== null) return;
@@ -223,7 +228,6 @@ export function BloqueDeEjercicio({
                       <Boton
                         titulo={superserie ? `Quitar la vuelta ${v + 1}` : 'Quitar esta serie'}
                         variante="sutil"
-                        color={paleta.textoTenue}
                         alPulsar={() => {
                           conDeshacer(
                             `${superserie ? 'Vuelta' : 'Serie'} ${v + 1} de ${nombre.enFrase} quitada`,
@@ -242,10 +246,10 @@ export function BloqueDeEjercicio({
       ))}
 
       <Boton
-        titulo={superserie ? '+ Vuelta' : '+ Serie'}
+        titulo={superserie ? 'Vuelta' : 'Serie'}
         etiqueta={superserie ? `Añadir una vuelta a ${nombre.enFrase}` : `Añadir una serie de ${nombre.enFrase}`}
-        variante="sutil"
-        color={color}
+        icono="mas"
+        variante="enlace"
         alPulsar={() => {
           const ids = bloque.ejercicioIds.map(() => nuevoId());
           cambiar((e) => anadirVuelta(e, bloque.id, ids));
@@ -267,20 +271,18 @@ export function BloqueDeEjercicio({
         <View style={estilos.enlazar}>
           <Boton
             titulo={`Enlazar en superserie con ${siguiente}`}
-            variante="sutil"
-            color={color}
+            icono="enlazar"
+            variante="enlace"
             alPulsar={() => conDeshacer(`En superserie con ${siguiente}`, (e) => enlazar(e, bloque.id, nuevoId))}
           />
         </View>
       )}
-    </View>
+    </Tarjeta>
   );
 }
 
 const estilos = StyleSheet.create({
   bloque: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radio.tarjeta,
     paddingVertical: espacio[2],
     gap: espacio[1],
   },
@@ -303,6 +305,11 @@ const estilos = StyleSheet.create({
   },
   otraVuelta: {
     marginTop: espacio[2],
+  },
+  abierta: {
+    marginHorizontal: espacio[2],
+    borderWidth: 2,
+    borderRadius: radio.boton,
   },
   fila: {
     minHeight: toqueMinimo,

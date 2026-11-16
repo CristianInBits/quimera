@@ -146,15 +146,13 @@ export default function DetalleDelEntreno() {
               <Boton
                 titulo={leido.corrigiendo ? 'Seguir corrigiendo' : 'Corregir'}
                 variante="secundario"
-                color={paleta.disciplina[entreno.disciplina].texto}
                 deshabilitado={borrando}
                 alPulsar={() => router.navigate({ pathname: '/apuntar/gimnasio', params: { corregir: entreno.id } })}
               />
             )}
             <Boton
               titulo={borrando ? 'Borrando' : 'Borrar entreno'}
-              variante="sutil"
-              color={paleta.error}
+              variante="error"
               deshabilitado={borrando}
               alPulsar={() => borrar(entreno)}
             />

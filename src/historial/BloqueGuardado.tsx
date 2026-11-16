@@ -1,9 +1,10 @@
 import { StyleSheet, Text, View } from 'react-native';
 
+import { Tarjeta } from '@/componentes/Tarjeta';
 import type { Bloque } from '@/datos/entrenos';
 import { metrosATexto } from '@/datos/unidades';
 import { usePaleta } from '@/tema/colores';
-import { datos, espacio, radio, texto, titulos } from '@/tema/medidas';
+import { datos, espacio, texto, titulos } from '@/tema/medidas';
 
 import { resumenDeSerieGuardada, textoDelDescansoGuardado, textoDelTiempoGuardado } from './textos';
 
@@ -30,7 +31,7 @@ export function BloqueGuardado({
   if (bloque.metrosCorridos !== null && bloque.series.length === 0) {
     const tiempo = bloque.tiempoMs === null ? '' : ` en ${textoDelTiempoGuardado(bloque.tiempoMs)}`;
     return (
-      <View style={[estilos.bloque, { borderColor: paleta.textoTenue }]}>
+      <Tarjeta style={estilos.bloque}>
         {/* En el gimnasio, la carrera es la de la cinta. */}
         <Text accessibilityRole="header" style={[estilos.titulo, { color: paleta.texto }]}>
           Carrera en cinta
@@ -41,7 +42,7 @@ export function BloqueGuardado({
         {descansoDespues !== null && (
           <Text style={[estilos.descansos, { color: paleta.textoTenue }]}>Descanso: {descansoDespues}</Text>
         )}
-      </View>
+      </Tarjeta>
     );
   }
 
@@ -62,7 +63,7 @@ export function BloqueGuardado({
   const descansos = [descansoEntre, descansoDespues].filter((parte) => parte !== null);
 
   return (
-    <View style={[estilos.bloque, { borderColor: paleta.textoTenue }]}>
+    <Tarjeta style={estilos.bloque}>
       {superserie && <Text style={[estilos.insignia, { color }]}>SUPERSERIE</Text>}
       <Text accessibilityRole="header" style={[estilos.titulo, { color: paleta.texto }]}>
         {columnas.map(([, ejercicioId]) => nombreDe(ejercicioId)).join(' + ')}
@@ -92,15 +93,12 @@ export function BloqueGuardado({
       {descansos.length > 0 && (
         <Text style={[estilos.descansos, { color: paleta.textoTenue }]}>Descansos: {descansos.join(' · ')}</Text>
       )}
-    </View>
+    </Tarjeta>
   );
 }
 
 const estilos = StyleSheet.create({
   bloque: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radio.tarjeta,
-    padding: espacio[3],
     gap: espacio[1],
   },
   insignia: {
