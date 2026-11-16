@@ -30,4 +30,9 @@ describe('La mascota', () => {
     await render(<Mascota disciplina="hyrox" esfuerzo={5} tamano={96} />);
     expect(screen.queryByTestId('mascota')).toBeNull();
   });
+
+  it('con alto, la caja deja de ser cuadrada, y el estilo propio va encima', async () => {
+    await render(<Mascota disciplina="gimnasio" tamano={90} alto={116} style={{ position: 'absolute', top: -3 }} />);
+    expect(screen.getByTestId('mascota')).toHaveStyle({ width: 90, height: 116, position: 'absolute', top: -3 });
+  });
 });

@@ -1,5 +1,5 @@
 import type { Semana } from '@/datos/carga';
-import { cifra, compararConLaPasada } from '@/inicio/comparar';
+import { cifra, compararConLaPasada, partirLaComparacion } from '@/inicio/comparar';
 
 const semana = (carga: number): Semana => ({ lunes: '2026-11-09', carga, minutos: 0, entrenos: carga > 0 ? 1 : 0, porDisciplina: [] });
 
@@ -34,5 +34,27 @@ describe('La comparación con la semana pasada', () => {
       '12 540',
       '1 234 567',
     ]);
+  });
+});
+
+describe('La comparación partida, con la diferencia aparte para destacarla', () => {
+  it.each([
+    [1254, 980, 'Un 28 % más', ' que la semana pasada (980).'],
+    [588, 980, 'Un 40 % menos', ' que la semana pasada (980).'],
+    [980, 980, 'Igual', ' que la semana pasada (980).'],
+    [984, 980, 'Casi igual', ' que la semana pasada (980).'],
+  ])('con %i y %i destaca «%s»', (esta, pasada, destacado, resto) => {
+    const frase = compararConLaPasada(semana(esta), semana(pasada));
+    expect(partirLaComparacion(frase)).toEqual({ destacado, resto });
+    expect(destacado + resto).toBe(frase);
+  });
+
+  it.each([
+    [0, 0],
+    [0, 980],
+    [500, 0],
+  ])('si no compara con la semana pasada (%i y %i), no destaca nada', (esta, pasada) => {
+    const frase = compararConLaPasada(semana(esta), semana(pasada));
+    expect(partirLaComparacion(frase)).toEqual({ destacado: '', resto: frase });
   });
 });

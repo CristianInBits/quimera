@@ -40,3 +40,13 @@ export function compararConLaPasada(estaSemana: Semana, laPasada: Semana): strin
   }
   return `Un ${cuanto} % ${exacta > 0 ? 'más' : 'menos'} que la semana pasada (${cifra(pasada)}).`;
 }
+
+/**
+ * La frase de la comparación partida en dos: lo que destaca, la diferencia
+ * («Un 27 % más», «Igual», «Casi igual»), y el resto. Si la frase no compara
+ * con la semana pasada, no destaca nada.
+ */
+export function partirLaComparacion(frase: string): { destacado: string; resto: string } {
+  const corte = frase.indexOf(' que la semana pasada');
+  return corte <= 0 ? { destacado: '', resto: frase } : { destacado: frase.slice(0, corte), resto: frase.slice(corte) };
+}

@@ -1,4 +1,5 @@
-import { act } from '@testing-library/react-native';
+import { act, within } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 import { renderRouter, screen } from 'expo-router/testing-library';
 
 import Historial from '@/app/(pestanas)/historial';
@@ -21,12 +22,36 @@ jest.mock('expo-sqlite', () => ({
   useSQLiteContext: () => mockBase,
 }));
 
+// La escala de la letra del sistema. La de Jest es 2, la de la letra grande;
+// las pruebas la ponen a 1 cuando miran la pantalla con la letra normal.
+let mockEscala = 2;
+jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => ({
+  __esModule: true,
+  default: () => ({ width: 390, height: 844, scale: 2, fontScale: mockEscala }),
+}));
+
 const RUTAS = {
   _layout: Raiz,
   '(pestanas)/_layout': Pestanas,
   '(pestanas)/index': Inicio,
   '(pestanas)/historial': Historial,
 };
+
+/**
+ * Si en la pantalla está el escenario de Inicio con el rinoceronte de
+ * presentación encima: los dos círculos de escenarioDeInicio y el dibujo.
+ */
+function rinoceronteSobreSuEscenario(): boolean {
+  const ocultos = { includeHiddenElements: true } as const;
+  const escenario = screen.getByTestId('escenario', ocultos);
+  const [fuera, dentro] = escenario.children.map((hijo) => (typeof hijo === 'string' ? {} : StyleSheet.flatten(hijo.props.style)));
+  const dibujo = within(escenario).getByTestId('mascota', ocultos);
+  return (
+    fuera.backgroundColor === PALETAS.claro.escenarioDeInicio[0] &&
+    dentro.backgroundColor === PALETAS.claro.escenarioDeInicio[1] &&
+    /rinoceronte.png$/.test(dibujo.props.source.testUri)
+  );
+}
 
 const VACIO = 'Cuando apuntes tu primer entreno, aquí verás la carga de la semana y cómo va respecto a la pasada.';
 
@@ -156,7 +181,110 @@ describe('Inicio', () => {
     await renderRouter(RUTAS, { initialUrl: '/' });
     const gimnasio = await screen.findByLabelText('Gimnasio, 53 minutos');
     const hyrox = screen.getByLabelText('Hyrox, 45 minutos');
-    expect(gimnasio.children[0]).toHaveStyle({ backgroundColor: PALETAS.claro.disciplina.gimnasio.marca });
-    expect(hyrox.children[0]).toHaveStyle({ backgroundColor: PALETAS.claro.disciplina.hyrox.marca });
+    expect(within(gimnasio).getByTestId('marca-de-disciplina')).toHaveStyle({
+      backgroundColor: PALETAS.claro.disciplina.gimnasio.marca,
+    });
+    expect(within(hyrox).getByTestId('marca-de-disciplina')).toHaveStyle({
+      backgroundColor: PALETAS.claro.disciplina.hyrox.marca,
+    });
+    // Cada ficha va teñida de su disciplina.
+    expect(hyrox).toHaveStyle({ backgroundColor: PALETAS.claro.disciplina.hyrox.tinte });
+  });
+
+  it('el rinoceronte acompaña la carga sobre su escenario y cuenta en su bocadillo cómo va, con la diferencia en negrita', async () => {
+    const nuevoId = generadorDeIds();
+    const hoy = fechaLocal(new Date());
+    await guardar(gimnasioConCalentamiento(nuevoId, hoy));
+    await guardar({ ...hyroxConDescansos(nuevoId), fecha: sumarDias(hoy, -7) });
+    await renderRouter(RUTAS, { initialUrl: '/' });
+    await screen.findByLabelText('Carga de esta semana: 371');
+    expect(rinoceronteSobreSuEscenario()).toBe(true);
+    const frase = screen.getByText('Un 3 % más que la semana pasada (360).');
+    expect(screen.getByTestId('bocadillo')).toContainElement(frase);
+    expect(screen.getByText('Un 3 % más')).toHaveStyle({ fontWeight: '700' });
+    // La negrita es solo de la diferencia: el resto de la frase va sin ella.
+    expect(frase).not.toHaveStyle({ fontWeight: '700' });
+  });
+
+  it('con la letra grande, el rinoceronte va encima de la cifra y el pico del bocadillo, al centro', async () => {
+    await guardar(gimnasioConCalentamiento(generadorDeIds(), fechaLocal(new Date())));
+    await renderRouter(RUTAS, { initialUrl: '/' });
+    expect(await screen.findByTestId('fila-de-la-carga')).toHaveStyle({ flexDirection: 'column-reverse' });
+    expect(screen.getByTestId('pico', { includeHiddenElements: true })).toHaveStyle({ left: '50%', marginLeft: -7 });
+  });
+
+  it('con la letra al 130 % de Android, que llega como 1,2999999, también apila', async () => {
+    mockEscala = Math.fround(1.3);
+    try {
+      await guardar(gimnasioConCalentamiento(generadorDeIds(), fechaLocal(new Date())));
+      await renderRouter(RUTAS, { initialUrl: '/' });
+      expect(await screen.findByTestId('fila-de-la-carga')).toHaveStyle({ flexDirection: 'column-reverse' });
+    } finally {
+      mockEscala = 2;
+    }
+  });
+
+  it('con la letra normal, la cifra va al lado del rinoceronte y el pico apunta a él', async () => {
+    mockEscala = 1;
+    try {
+      await guardar(gimnasioConCalentamiento(generadorDeIds(), fechaLocal(new Date())));
+      await renderRouter(RUTAS, { initialUrl: '/' });
+      expect(await screen.findByTestId('fila-de-la-carga')).toHaveStyle({ flexDirection: 'row' });
+      // A la mitad del escenario de 156 desde la derecha: el centro del pico, 7 más allá de su borde.
+      expect(screen.getByTestId('pico', { includeHiddenElements: true })).toHaveStyle({ right: 71 });
+    } finally {
+      mockEscala = 2;
+    }
+  });
+
+  it('la gráfica de las ocho últimas semanas es, para el lector de pantalla, una imagen con todas las cifras', async () => {
+    const nuevoId = generadorDeIds();
+    const hoy = fechaLocal(new Date());
+    await guardar(gimnasioConCalentamiento(nuevoId, hoy));
+    await guardar({ ...hyroxConDescansos(nuevoId), fecha: sumarDias(hoy, -7) });
+    await guardar({ ...gimnasioConCalentamiento(nuevoId, sumarDias(hoy, -49)), esfuerzo: 5 });
+    await renderRouter(RUTAS, { initialUrl: '/' });
+    expect(
+      await screen.findByRole('image', {
+        name: 'Carga de las 8 últimas semanas, de la más antigua a esta: 265, 0, 0, 0, 0, 0, 360 y 371.',
+      }),
+    ).toBeOnTheScreen();
+  });
+
+  it('con la letra normal, las cifras van encima de sus barras y los nombres debajo', async () => {
+    mockEscala = 1;
+    try {
+      const nuevoId = generadorDeIds();
+      const hoy = fechaLocal(new Date());
+      await guardar(gimnasioConCalentamiento(nuevoId, hoy));
+      await guardar({ ...hyroxConDescansos(nuevoId), fecha: sumarDias(hoy, -7) });
+      await renderRouter(RUTAS, { initialUrl: '/' });
+      const grafica = await screen.findByRole('image', { name: /^Carga de las 8 últimas semanas/ });
+      expect(within(grafica).getByText('Pasada')).toBeOnTheScreen();
+      expect(within(grafica).getByText('Esta')).toBeOnTheScreen();
+      expect(within(grafica).getByText('360')).toBeOnTheScreen();
+      expect(within(grafica).queryByText(/^Pasada: /)).toBeNull();
+    } finally {
+      mockEscala = 2;
+    }
+  });
+
+  it('con la letra grande, las cifras de la gráfica van en una línea debajo', async () => {
+    const nuevoId = generadorDeIds();
+    const hoy = fechaLocal(new Date());
+    await guardar(gimnasioConCalentamiento(nuevoId, hoy));
+    await guardar({ ...hyroxConDescansos(nuevoId), fecha: sumarDias(hoy, -7) });
+    await renderRouter(RUTAS, { initialUrl: '/' });
+    const grafica = await screen.findByRole('image', { name: /^Carga de las 8 últimas semanas/ });
+    expect(within(grafica).getByText('Pasada: 360 · Esta: 371')).toBeOnTheScreen();
+    expect(within(grafica).queryByText('Pasada')).toBeNull();
+  });
+
+  it('sin ningún entreno, el rinoceronte da la bienvenida con el texto en su bocadillo, sin gráfica', async () => {
+    await renderRouter(RUTAS, { initialUrl: '/' });
+    const texto = await screen.findByText(VACIO);
+    expect(screen.getByTestId('bocadillo')).toContainElement(texto);
+    expect(rinoceronteSobreSuEscenario()).toBe(true);
+    expect(screen.queryByRole('image', { name: /^Carga de las/ })).toBeNull();
   });
 });

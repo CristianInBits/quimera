@@ -1,4 +1,4 @@
-import { Image, type ImageSourcePropType } from 'react-native';
+import { Image, type ImageSourcePropType, type ImageStyle, type StyleProp } from 'react-native';
 
 import type { Disciplina } from '@/datos/entrenos';
 
@@ -50,11 +50,16 @@ export function Mascota({
   disciplina,
   esfuerzo = null,
   tamano,
+  alto = tamano,
+  style,
 }: {
   disciplina: Disciplina;
   esfuerzo?: number | null;
-  /** El lado del cuadrado donde cabe el dibujo entero, en puntos. */
+  /** El ancho de la caja donde cabe el dibujo entero, en puntos; sin alto, es un cuadrado. */
   tamano: number;
+  alto?: number;
+  /** Dónde va la caja, por ejemplo encima de su escenario. */
+  style?: StyleProp<ImageStyle>;
 }) {
   const dibujos = DIBUJOS[disciplina];
   if (dibujos === undefined) {
@@ -69,7 +74,12 @@ export function Mascota({
       fadeDuration={0}
       accessibilityIgnoresInvertColors
       importantForAccessibility="no"
-      style={{ width: tamano, height: tamano }}
+      style={[{ width: tamano, height: alto }, style]}
     />
   );
+}
+
+/** Si hay dibujos de la mascota de una disciplina. */
+export function tieneMascota(disciplina: Disciplina): boolean {
+  return DIBUJOS[disciplina] !== undefined;
 }

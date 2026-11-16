@@ -1,25 +1,39 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Bocadillo } from '@/componentes/Bocadillo';
 import { Boton } from '@/componentes/Boton';
+import { EscenarioDeLaMascota, type ProporcionesDelEscenario } from '@/componentes/EscenarioDeLaMascota';
 import { Tarjeta } from '@/componentes/Tarjeta';
 import { useHoy } from '@/componentes/useHoy';
 import { leerCargaDeInicio, type CargaDeInicio } from '@/datos/carga';
-import { NOMBRE_DE_DISCIPLINA } from '@/datos/entrenos';
 import { lunesDe } from '@/datos/fechas';
 import { usePuerta } from '@/datos/usarBase';
-import { textoDeMinutos } from '@/gimnasio/editor';
-import { cifra, compararConLaPasada } from '@/inicio/comparar';
+import { cifra, compararConLaPasada, partirLaComparacion } from '@/inicio/comparar';
+import { FichaDeDisciplina } from '@/inicio/FichaDeDisciplina';
+import { GraficaDeSemanas } from '@/inicio/GraficaDeSemanas';
 import { usePaleta } from '@/tema/colores';
-import { datos, espacio, texto, titulos } from '@/tema/medidas';
+import { datos, esLetraGrande, espacio, texto, titulos } from '@/tema/medidas';
+
+/** El lado del escenario del rinoceronte junto a la carga. */
+const ESCENARIO = 156;
+/** El lado del escenario del rinoceronte encima de la carga, con la letra grande. */
+const ESCENARIO_APILADO = 140;
+/** El lado del escenario del rinoceronte cuando todavía no hay entrenos, con las proporciones de la maqueta. */
+const ESCENARIO_DE_BIENVENIDA = 200;
+const PROPORCIONES_DE_BIENVENIDA: ProporcionesDelEscenario = { arriba: 0.08, interior: 0.7, dibujo: 1.12, alzado: 0.035 };
+
+// El botón va abajo, al alcance del pulgar, si la pantalla da para ello. En el
+// iPhone, la barra de pestañas se dibuja encima de la pantalla: el borde de
+// abajo de la zona segura, que ya la cuenta, deja el botón encima de ella. En
+// Android, expo-router ya deja la pantalla encima de su barra.
+const BORDES_SEGUROS = Platform.OS === 'ios' ? (['top', 'bottom'] as const) : (['top'] as const);
 
 // La pantalla de inicio: cómo va la semana y, debajo, el botón para apuntar un
 // entreno. Las dos pestañas están montadas a la vez, así que la carga se
 // vuelve a leer cada vez que se enseña, como al volver de guardar un entreno.
-// Va en un ScrollView, primer hijo de la pantalla, para que en el iPhone la
-// barra de pestañas no tape el botón.
 export default function Inicio() {
   const puerta = usePuerta();
   const paleta = usePaleta();
@@ -48,16 +62,18 @@ export default function Inicio() {
   );
 
   return (
-    <SafeAreaView edges={['top']} style={[estilos.pantalla, { backgroundColor: paleta.fondo }]}>
+    <SafeAreaView edges={BORDES_SEGUROS} style={[estilos.pantalla, { backgroundColor: paleta.fondo }]}>
       <ScrollView contentContainerStyle={estilos.contenido}>
         <View style={estilos.cabecera}>
           {/* Con la letra grande de iOS crece como los títulos del sistema, no sin tope. */}
-          <Text dynamicTypeRamp="largeTitle" style={[estilos.titulo, { color: paleta.texto }]}>
+          <Text accessibilityRole="header" dynamicTypeRamp="largeTitle" style={[estilos.titulo, { color: paleta.texto }]}>
             Quimera
           </Text>
           <Text style={[estilos.lema, { color: paleta.textoTenue }]}>Tus entrenos, en tu móvil.</Text>
         </View>
         <EstaSemana carga={carga} error={error} />
+        {/* Empuja el botón abajo, al alcance del pulgar, si la pantalla da para ello. */}
+        <View style={estilos.hueco} />
         <Boton titulo="Apuntar un entreno" icono="mas" variante="principal" alPulsar={() => router.navigate('/apuntar')} />
       </ScrollView>
     </SafeAreaView>
@@ -66,57 +82,105 @@ export default function Inicio() {
 
 /**
  * La carga de esta semana, la de Quimera-web: los minutos de cada entreno por
- * su esfuerzo, sumados de lunes a domingo. Debajo, cómo va respecto a la
- * pasada y los minutos de cada disciplina. Sin ningún entreno guardado, un
- * cero enorme no dice nada: entonces sale lo que habrá aquí.
+ * su esfuerzo, sumados de lunes a domingo. Junto a la cifra está el
+ * rinoceronte, que cuenta en su bocadillo cómo va respecto a la pasada.
+ * Debajo, la gráfica de las últimas semanas y los minutos de cada disciplina.
+ * Sin ningún entreno guardado, un cero enorme no dice nada: entonces el
+ * rinoceronte da la bienvenida y cuenta lo que habrá aquí.
  */
 function EstaSemana({ carga, error }: { carga: CargaDeInicio | null; error: string | null }) {
   const paleta = usePaleta();
+  const { fontScale } = useWindowDimensions();
+  // Con la letra grande, la cifra no cabe junto al rinoceronte: él va arriba y la cifra, debajo.
+  const apilado = esLetraGrande(fontScale);
+  const tituloDeLaSemana = (
+    <Text accessibilityRole="header" style={[estilos.tituloDeSeccion, { color: paleta.texto }]}>
+      Esta semana
+    </Text>
+  );
+
+  if (error !== null) {
+    return (
+      <Tarjeta destacada relleno={espacio[5]} style={estilos.tarjeta}>
+        {tituloDeLaSemana}
+        <Text style={[estilos.parrafo, { color: paleta.error }]}>{error}</Text>
+      </Tarjeta>
+    );
+  }
+  if (carga === null) {
+    return null;
+  }
+  if (!carga.hayEntrenos) {
+    return (
+      <Tarjeta destacada relleno={espacio[5]} style={estilos.tarjeta}>
+        {tituloDeLaSemana}
+        <View style={estilos.bienvenida}>
+          <EscenarioDeLaMascota
+            disciplina="gimnasio"
+            tamano={ESCENARIO_DE_BIENVENIDA}
+            colores={paleta.escenarioDeInicio}
+            proporciones={PROPORCIONES_DE_BIENVENIDA}
+          />
+        </View>
+        <Bocadillo>
+          <Text style={[estilos.parrafo, estilos.centrado, { color: paleta.texto }]}>
+            Cuando apuntes tu primer entreno, aquí verás la carga de la semana y cómo va respecto a la pasada.
+          </Text>
+        </Bocadillo>
+      </Tarjeta>
+    );
+  }
+
+  const { destacado, resto } = partirLaComparacion(compararConLaPasada(carga.estaSemana, carga.laPasada));
   return (
-    <View style={estilos.seccion}>
-      <Text accessibilityRole="header" style={[estilos.tituloDeSeccion, { color: paleta.texto }]}>
-        Esta semana
-      </Text>
-      {error !== null && <Text style={[estilos.parrafo, { color: paleta.error }]}>{error}</Text>}
-      {carga !== null && !carga.hayEntrenos && (
-        <Text style={[estilos.parrafo, { color: paleta.textoTenue }]}>
-          Cuando apuntes tu primer entreno, aquí verás la carga de la semana y cómo va respecto a la pasada.
-        </Text>
-      )}
-      {carga !== null && carga.hayEntrenos && (
-        <>
-          <Tarjeta destacada relleno={espacio[5]} style={estilos.tarjeta}>
-            <View accessible accessibilityLabel={`Carga de esta semana: ${cifra(carga.estaSemana.carga)}`} style={estilos.carga}>
-              <Text dynamicTypeRamp="largeTitle" style={[datos, estilos.cifra, { color: paleta.texto }]}>
+    <>
+      <Tarjeta destacada relleno={espacio[5]} style={estilos.tarjeta}>
+        <View testID="fila-de-la-carga" style={[estilos.fila, apilado && estilos.filaApilada]}>
+          <View style={[estilos.columnaDeLaCarga, apilado && estilos.columnaApilada]}>
+            {tituloDeLaSemana}
+            <View
+              accessible
+              accessibilityLabel={`Carga de esta semana: ${cifra(carga.estaSemana.carga)}`}
+              style={estilos.carga}
+            >
+              {/* Una cifra larga encoge para caber en una línea, en vez de partirse. */}
+              <Text
+                dynamicTypeRamp="largeTitle"
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                style={[datos, estilos.cifra, { color: paleta.texto }]}
+              >
                 {cifra(carga.estaSemana.carga)}
               </Text>
-              <Text style={[estilos.unidad, { color: paleta.textoTenue }]}>de carga</Text>
+              <Text style={[estilos.parrafo, { color: paleta.textoTenue }]}>de carga</Text>
             </View>
-            <Text style={[estilos.parrafo, { color: paleta.texto }]}>
-              {compararConLaPasada(carga.estaSemana, carga.laPasada)}
-            </Text>
-            {carga.estaSemana.porDisciplina.map(({ disciplina, minutos }) => (
-              <View
-                key={disciplina}
-                accessible
-                accessibilityLabel={`${NOMBRE_DE_DISCIPLINA[disciplina]}, ${textoDeMinutos(minutos)}`}
-                style={estilos.disciplina}
-              >
-                <View style={[estilos.marca, { backgroundColor: paleta.disciplina[disciplina].marca }]} />
-                {/* Si con la letra grande no caben juntos, los minutos bajan debajo del nombre. */}
-                <View style={estilos.nombreYMinutos}>
-                  <Text style={[estilos.nombre, { color: paleta.texto }]}>{NOMBRE_DE_DISCIPLINA[disciplina]}</Text>
-                  <Text style={[datos, estilos.minutos, { color: paleta.texto }]}>{textoDeMinutos(minutos)}</Text>
-                </View>
-              </View>
-            ))}
-          </Tarjeta>
-          <Text style={[estilos.nota, { color: paleta.textoTenue }]}>
-            Minutos por esfuerzo. Compara tus semanas entre sí, no unas disciplinas con otras.
+          </View>
+          <EscenarioDeLaMascota
+            disciplina="gimnasio"
+            tamano={apilado ? ESCENARIO_APILADO : ESCENARIO}
+            colores={paleta.escenarioDeInicio}
+          />
+        </View>
+        {/* El pico apunta al rinoceronte: a la mitad de su escenario desde la derecha, o al centro si va arriba. */}
+        <Bocadillo pico={apilado ? undefined : ESCENARIO / 2}>
+          <Text style={[estilos.parrafo, { color: paleta.texto }]}>
+            {destacado !== '' && <Text style={estilos.destacado}>{destacado}</Text>}
+            {resto}
           </Text>
-        </>
-      )}
-    </View>
+        </Bocadillo>
+        <GraficaDeSemanas semanas={carga.ultimasSemanas} />
+        {carga.estaSemana.porDisciplina.length > 0 && (
+          <View style={estilos.fichas}>
+            {carga.estaSemana.porDisciplina.map(({ disciplina, minutos }) => (
+              <FichaDeDisciplina key={disciplina} disciplina={disciplina} minutos={minutos} />
+            ))}
+          </View>
+        )}
+      </Tarjeta>
+      <Text style={[estilos.nota, { color: paleta.textoTenue }]}>
+        Minutos por esfuerzo. Compara tus semanas entre sí, no unas disciplinas con otras.
+      </Text>
+    </>
   );
 }
 
@@ -126,66 +190,75 @@ const estilos = StyleSheet.create({
   },
   contenido: {
     flexGrow: 1,
-    justifyContent: 'center',
-    gap: espacio[8],
-    paddingHorizontal: espacio[6],
-    paddingVertical: espacio[8],
+    paddingHorizontal: espacio[5],
+    paddingTop: espacio[3],
+    paddingBottom: espacio[4],
   },
   cabecera: {
-    alignItems: 'center',
-    gap: espacio[2],
+    gap: 2,
   },
-  titulo: titulos.pantalla,
+  titulo: {
+    ...titulos.pantalla,
+    letterSpacing: -0.2,
+  },
   lema: {
-    fontSize: texto.l,
-  },
-  seccion: {
-    gap: espacio[2],
+    fontSize: texto.m,
   },
   tituloDeSeccion: titulos.seccion,
   parrafo: {
     fontSize: texto.m,
   },
-  tarjeta: {
-    gap: espacio[3],
+  centrado: {
+    textAlign: 'center',
   },
-  carga: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'baseline',
-    columnGap: espacio[2],
-  },
-  cifra: {
-    fontSize: texto.datoXl,
+  destacado: {
     fontWeight: '700',
   },
-  unidad: {
-    fontSize: texto.m,
+  tarjeta: {
+    marginTop: espacio[5],
+    gap: 14,
   },
-  disciplina: {
-    flexDirection: 'row',
+  bienvenida: {
     alignItems: 'center',
-    gap: espacio[3],
   },
-  marca: {
-    width: espacio[1],
-    alignSelf: 'stretch',
-    borderRadius: espacio[1],
+  fila: {
+    flexDirection: 'row',
+    gap: espacio[2],
   },
-  nombreYMinutos: {
+  filaApilada: {
+    flexDirection: 'column-reverse',
+    alignItems: 'center',
+  },
+  columnaDeLaCarga: {
     flex: 1,
+    justifyContent: 'space-between',
+  },
+  columnaApilada: {
+    flex: 0,
+    alignSelf: 'stretch',
+    gap: espacio[2],
+  },
+  carga: {
+    gap: 2,
+    paddingBottom: espacio[2],
+  },
+  cifra: {
+    fontSize: 60,
+    fontWeight: '700',
+    letterSpacing: -1.5,
+  },
+  fichas: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    columnGap: espacio[3],
-  },
-  nombre: {
-    fontSize: texto.m,
-  },
-  minutos: {
-    fontSize: texto.m,
+    gap: 10,
   },
   nota: {
     fontSize: texto.s,
+    marginTop: espacio[3],
+    marginHorizontal: espacio[1],
+  },
+  hueco: {
+    flexGrow: 1,
+    minHeight: espacio[4],
   },
 });

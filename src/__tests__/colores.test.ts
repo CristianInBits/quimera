@@ -130,9 +130,15 @@ describe.each(['claro', 'oscuro'] as const)('Los colores en modo %s', (modo) => 
     expect(paleta.primario).toBe(paleta.disciplina.gimnasio.marca);
   });
 
-  it('cada mascota se ve sobre su escenario: el círculo de dentro se separa de la ropa oscura', () => {
+  it('el icono encima de la marca de cada disciplina se ve', () => {
     for (const disciplina of DISCIPLINAS) {
-      const [fuera, dentro] = paleta.disciplina[disciplina].escenario;
+      expect(contraste(paleta.sobreMarca, paleta.disciplina[disciplina].marca)).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it('cada mascota se ve sobre su escenario: el círculo de dentro se separa de la ropa oscura', () => {
+    const escenarios = [...DISCIPLINAS.map((d) => paleta.disciplina[d].escenario), paleta.escenarioDeInicio];
+    for (const [fuera, dentro] of escenarios) {
       expect(contraste(dentro, '#000000')).toBeGreaterThanOrEqual(2);
       expect(fuera).not.toBe(dentro);
     }

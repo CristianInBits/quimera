@@ -52,6 +52,13 @@ export type Paleta = {
   error: string;
   /** El fondo de la insignia SUPERSERIE, escrita en primarioTexto. */
   insignia: string;
+  /** Los iconos encima de la marca de una disciplina, como en su ficha. */
+  sobreMarca: string;
+  /**
+   * El escenario del rinoceronte en la tarjeta de Inicio, sobre la superficie:
+   * en claro, más suave que el de encima del tinte.
+   */
+  escenarioDeInicio: readonly [string, string];
   /** El fondo de la barra de pestañas. */
   barraDePestanas: string;
   /** Las barras de la gráfica de la carga, de menos a más marcadas. */
@@ -81,6 +88,8 @@ export const PALETAS: Record<'claro' | 'oscuro', Paleta> = {
     tintePrimario: '#fce9f2',
     error: '#b3261e',
     insignia: '#f9e0eb',
+    sobreMarca: '#ffffff',
+    escenarioDeInicio: ['#fceaf2', '#f8d4e4'],
     barraDePestanas: '#ffffff',
     grafica: { anteriores: '#e6a0ba', pasada: '#d56a8f', esta: '#c2185b' },
     disciplina: {
@@ -107,6 +116,8 @@ export const PALETAS: Record<'claro' | 'oscuro', Paleta> = {
     tintePrimario: '#2a1726',
     error: '#ffb4ab',
     insignia: '#3d1f35',
+    sobreMarca: '#12141a',
+    escenarioDeInicio: ['#492940', '#663859'],
     barraDePestanas: '#131721',
     grafica: { anteriores: '#7a445d', pasada: '#b05a7f', esta: '#f06aa8' },
     // Las mascotas visten de oscuro: en oscuro, su escenario es lo bastante claro para que no se pierdan.

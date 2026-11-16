@@ -21,6 +21,16 @@ export const radio = {
 
 export const toqueMinimo = 48;
 
+/**
+ * Si la letra del sistema va al 130 % o más: entonces lo que va en fila se
+ * apila, porque no cabe. Android pasa su escala como un número de coma
+ * flotante de 32 bits, y su 130 % llega como 1,2999999…: por eso se compara
+ * en tantos por ciento redondeados y no con 1,3.
+ */
+export function esLetraGrande(fontScale: number): boolean {
+  return Math.round(fontScale * 100) >= 130;
+}
+
 export const texto = { xs: 12, s: 14, m: 16, l: 20, xl: 28, datoXl: 40 } as const;
 
 /**

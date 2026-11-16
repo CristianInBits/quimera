@@ -12,6 +12,12 @@ const ICONOS = {
   enlazar: { ios: 'link', android: 'link' },
   calendario: { ios: 'calendar', android: 'calendar_today' },
   reloj: { ios: 'clock', android: 'schedule' },
+  // Los de cada disciplina, para su ficha.
+  gimnasio: { ios: 'dumbbell', android: 'fitness_center' },
+  hyrox: { ios: 'bolt', android: 'bolt' },
+  calistenia: { ios: 'figure.strengthtraining.functional', android: 'sports_gymnastics' },
+  carrera: { ios: 'figure.run', android: 'directions_run' },
+  natacion: { ios: 'figure.pool.swim', android: 'pool' },
 } as const;
 
 export type NombreDeIcono = keyof typeof ICONOS;
