@@ -1,5 +1,6 @@
 import type { Serie } from '@/datos/entrenos';
 import {
+  partesDelTiempoGuardado,
   resumenDeSerieGuardada,
   resumenDelContenido,
   textoDelDescansoGuardado,
@@ -45,5 +46,14 @@ describe('Los textos de lo guardado', () => {
     expect(textoDelTiempoGuardado(720_000)).toBe('12 minutos');
     expect(textoDelTiempoGuardado(60_000)).toBe('1 minuto');
     expect(textoDelTiempoGuardado(2_730_000)).toBe('45:30');
+  });
+
+  it('el tiempo guardado, partido para enseñarlo en grande: la cifra con su palabra, o el reloj solo', () => {
+    expect(partesDelTiempoGuardado(55 * 60_000)).toEqual({ cifra: '55', unidad: 'minutos' });
+    expect(partesDelTiempoGuardado(60_000)).toEqual({ cifra: '1', unidad: 'minuto' });
+    expect(partesDelTiempoGuardado(2_730_000)).toEqual({ cifra: '45:30', unidad: null });
+    expect(partesDelTiempoGuardado(65 * 60_000 + 30_000)).toEqual({ cifra: '1:05:30', unidad: null });
+    // Las horas enteras, en minutos, como en el editor.
+    expect(partesDelTiempoGuardado(120 * 60_000)).toEqual({ cifra: '120', unidad: 'minutos' });
   });
 });

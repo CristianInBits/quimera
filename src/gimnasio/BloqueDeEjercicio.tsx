@@ -18,6 +18,7 @@ import {
   enlazar,
   igualQueLaAnterior,
   marcarHecha,
+  notasDelBloque,
   pasoDeSerie,
   quitarBloque,
   quitarVuelta,
@@ -75,12 +76,6 @@ function camposDe(ejercicio: Ejercicio | undefined): CampoDeSerie[] {
   return [...(mide('peso') ? (['peso'] as const) : []), ...(mide('repeticiones') ? (['repeticiones'] as const) : [])];
 }
 
-/** Lo que conviene saber al apuntar un ejercicio, o null. */
-function notaDe(ejercicio: Ejercicio | undefined): string | null {
-  if (ejercicio?.porMancuerna) return 'peso por mancuerna';
-  return ejercicio?.mide.includes('tiempo') ? 'en segundos' : null;
-}
-
 /** El hueco del final de cada fila de serie, donde va su marca: hecha, o abierta. */
 const MARCA = 26;
 
@@ -130,11 +125,7 @@ export function BloqueDeEjercicio({
   // Lo que se ve: los nombres sin ordinal. El lector de pantalla y los avisos usan los de «nombre».
   const nombres = bloque.ejercicioIds.map((id, c) => ejercicios[c]?.nombre ?? id);
   const superserie = nombres.length > 1;
-  const notas = ejercicios.flatMap((ejercicio, c) => {
-    const nota = notaDe(ejercicio);
-    if (nota === null) return [];
-    return [{ c, texto: superserie ? `${nombres[c]}: ${nota}` : nota.charAt(0).toUpperCase() + nota.slice(1) }];
-  });
+  const notas = notasDelBloque(ejercicios, nombres);
 
   const titulo = (
     <>

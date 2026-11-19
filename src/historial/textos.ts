@@ -38,3 +38,14 @@ export function textoDelDescansoGuardado(ms: number): string {
 export function textoDelTiempoGuardado(ms: number): string {
   return ms % 60_000 === 0 ? textoDeMinutos(ms / 60_000) : msATexto(ms);
 }
+
+/**
+ * Lo mismo, partido para enseñarlo en grande: la cifra y, si son minutos
+ * enteros, su palabra al lado; si no, el reloj solo. «55» y «minutos», o
+ * «45:30».
+ */
+export function partesDelTiempoGuardado(ms: number): { cifra: string; unidad: string | null } {
+  if (ms % 60_000 !== 0) return { cifra: msATexto(ms), unidad: null };
+  const minutos = ms / 60_000;
+  return { cifra: String(minutos), unidad: minutos === 1 ? 'minuto' : 'minutos' };
+}

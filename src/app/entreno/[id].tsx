@@ -1,38 +1,38 @@
 import { Stack, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { AccessibilityInfo, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Boton } from '@/componentes/Boton';
-import { Mascota } from '@/componentes/Mascota';
+import { TituloConMarca } from '@/componentes/TituloConMarca';
 import { useHoy } from '@/componentes/useHoy';
 import { leerAjuste, quitarAjusteLocalEn } from '@/datos/ajustes';
-import { leerEjerciciosPorClave } from '@/datos/ejercicios';
+import { leerEjerciciosPorClave, type Ejercicio } from '@/datos/ejercicios';
 import { NOMBRE_DE_DISCIPLINA, borrarEntrenoEn, leerEntreno, type EntrenoGuardado } from '@/datos/entrenos';
-import { fechaEnFrase, textoDeFecha } from '@/datos/fechas';
+import { fechaEnFrase } from '@/datos/fechas';
 import { usePuerta } from '@/datos/usarBase';
-import { claveDeCorreccion, leerBorrador, palabraDelEsfuerzo } from '@/gimnasio/editor';
+import { claveDeCorreccion, leerBorrador } from '@/gimnasio/editor';
 import { BloqueGuardado } from '@/historial/BloqueGuardado';
-import { textoDelTiempoGuardado } from '@/historial/textos';
+import { ResumenDelEntreno } from '@/historial/ResumenDelEntreno';
 import { avisarDelBorrado } from '@/historial/ultimoBorrado';
 import { usePaleta } from '@/tema/colores';
-import { datos, espacio, texto, titulos } from '@/tema/medidas';
-
-const conMayuscula = (texto: string) => texto.charAt(0).toUpperCase() + texto.slice(1);
+import { espacio, radio, texto, titulos } from '@/tema/medidas';
 
 type Leido = {
   /** Null si no existe o está borrado. */
   entreno: EntrenoGuardado | null;
-  nombres: Map<string, string>;
+  /** Los ejercicios del entreno, por su clave. */
+  ejercicios: Map<string, Ejercicio>;
   /** Si hay una corrección a medias de este entreno en el móvil. */
   corrigiendo: boolean;
 };
 
 /**
  * Un entreno guardado, entero, con lo necesario para corregirlo o borrarlo.
- * Borrar no pregunta: el entreno desaparece del historial y allí sale el aviso
- * para deshacerlo. Se vuelve a leer cada vez que se enseña, porque al volver de
- * corregirlo ha cambiado.
+ * Arriba, su resumen; debajo, cada bloque en su tarjeta, las notas y los
+ * botones. Borrar no pregunta: el entreno desaparece del historial y allí sale
+ * el aviso para deshacerlo. Se vuelve a leer cada vez que se enseña, porque al
+ * volver de corregirlo ha cambiado.
  */
 export default function DetalleDelEntreno() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -43,6 +43,7 @@ export default function DetalleDelEntreno() {
   const [leido, setLeido] = useState<Leido | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [borrando, setBorrando] = useState(false);
+  const [errorAlBorrar, setErrorAlBorrar] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -53,14 +54,14 @@ export default function DetalleDelEntreno() {
           const ids = entreno?.bloques.flatMap((bloque) => bloque.series.map((serie) => serie.ejercicioId)) ?? [];
           const ejercicios = await leerEjerciciosPorClave(l, ids);
           const borrador = leerBorrador(await leerAjuste(l, claveDeCorreccion(id)));
-          return {
-            entreno,
-            nombres: new Map([...ejercicios.values()].map((ejercicio) => [ejercicio.id, ejercicio.nombre])),
-            corrigiendo: borrador !== null && borrador.id === id,
-          };
+          return { entreno, ejercicios, corrigiendo: borrador !== null && borrador.id === id };
         })
         .then((nuevo) => {
-          if (vivo) setLeido(nuevo);
+          if (!vivo) return;
+          setLeido(nuevo);
+          // Lo que falló antes ya no vale con el entreno releído, como al volver de corregirlo.
+          setError(null);
+          setErrorAlBorrar(null);
         })
         .catch((e: unknown) => {
           if (vivo) setError(`No se pudo leer el entreno. (${String(e)})`);
@@ -72,10 +73,36 @@ export default function DetalleDelEntreno() {
   );
 
   const entreno = leido?.entreno ?? null;
-  const titulo = entreno === null ? 'Entreno' : NOMBRE_DE_DISCIPLINA[entreno.disciplina];
+  const disciplina = entreno?.disciplina ?? null;
+  const nombre = disciplina === null ? null : NOMBRE_DE_DISCIPLINA[disciplina];
+  // Mientras se lee, la cabecera va sin título, para no enseñar uno que cambie
+  // enseguida; si no se puede leer, o el entreno ya no está, «Entreno».
+  const titulo = leido === null && error === null ? '' : (nombre ?? 'Entreno');
+  // Con el entreno leído, su disciplina va con su marca delante del título,
+  // como en el editor. En Android, la pila recibe un título vacío, para que el
+  // título con su marca empiece justo después de la flecha. Las opciones se
+  // juntan con las de antes: sin disciplina, headerTitle tiene que quitar la
+  // marca que hubiera. Al detalle se llega desde el historial: el botón atrás
+  // del iPhone lo dice.
+  const opciones = {
+    headerShown: true,
+    title: disciplina !== null && Platform.OS === 'android' ? '' : titulo,
+    headerTitle: disciplina === null ? undefined : () => <TituloConMarca disciplina={disciplina} titulo={titulo} />,
+    headerBackTitle: 'Historial',
+  };
+  // Con el título vacío, TalkBack no tiene qué decir al abrir la pantalla: se le
+  // dice el nombre de la disciplina, una vez, al leerse el entreno.
+  useEffect(() => {
+    if (Platform.OS === 'android' && nombre !== null) AccessibilityInfo.announceForAccessibility(nombre);
+  }, [nombre]);
+  // Si no se puede borrar, se dice junto a los botones, donde se ha pulsado, y se anuncia.
+  useEffect(() => {
+    if (errorAlBorrar !== null) AccessibilityInfo.announceForAccessibility(errorAlBorrar);
+  }, [errorAlBorrar]);
 
   const borrar = (guardado: EntrenoGuardado) => {
     setBorrando(true);
+    setErrorAlBorrar(null);
     const clave = claveDeCorreccion(guardado.id);
     puerta
       .escribir(async (tx) => {
@@ -93,69 +120,65 @@ export default function DetalleDelEntreno() {
       })
       .catch((e: unknown) => {
         setBorrando(false);
-        setError(`No se pudo borrar el entreno. (${String(e)})`);
+        setErrorAlBorrar(`No se pudo borrar el entreno. (${String(e)})`);
       });
   };
 
   return (
     <View style={[estilos.pantalla, { backgroundColor: paleta.fondo }]}>
-      {/* Al detalle se llega desde el historial: el botón atrás del iPhone lo dice. */}
-      <Stack.Screen options={{ headerShown: true, title: titulo, headerBackTitle: 'Historial' }} />
-      <ScrollView contentContainerStyle={[estilos.contenido, { paddingBottom: margenes.bottom + espacio[8] }]}>
+      <Stack.Screen options={opciones} />
+      <ScrollView
+        testID="detalle"
+        contentContainerStyle={[estilos.contenido, { paddingBottom: margenes.bottom + espacio[8] }]}
+      >
         {error !== null && <Text style={[estilos.error, { color: paleta.error }]}>{error}</Text>}
         {leido !== null && entreno === null && (
           <Text style={[estilos.aviso, { color: paleta.textoTenue }]}>Este entreno ya no está: se ha borrado.</Text>
         )}
         {entreno !== null && leido !== null && (
           <>
-            <View style={estilos.cabecera}>
-              <View style={estilos.resumen}>
-                <Text
-                  accessibilityLabel={`${conMayuscula(fechaEnFrase(entreno.fecha, hoy))}${entreno.hora === null ? '' : `, a las ${entreno.hora}`}`}
-                  style={[datos, estilos.cuando, { color: paleta.texto }]}
-                >
-                  {textoDeFecha(entreno.fecha, hoy)}
-                  {entreno.hora === null ? '' : `, ${entreno.hora}`}
-                </Text>
-                <Text style={[datos, estilos.dato, { color: paleta.texto }]}>{textoDelTiempoGuardado(entreno.duracionMs)}</Text>
-                <Text style={[estilos.esfuerzo, { color: paleta.texto }]}>
-                  Esfuerzo {entreno.esfuerzo}, {palabraDelEsfuerzo(entreno.esfuerzo)}
-                </Text>
-              </View>
-              <Mascota disciplina={entreno.disciplina} esfuerzo={entreno.esfuerzo} tamano={72} />
-            </View>
+            <ResumenDelEntreno entreno={entreno} hoy={hoy} />
 
             {entreno.bloques.map((bloque) => (
-              <BloqueGuardado
-                key={bloque.id}
-                bloque={bloque}
-                nombres={leido.nombres}
-                color={paleta.disciplina[entreno.disciplina].texto}
-              />
+              <BloqueGuardado key={bloque.id} bloque={bloque} ejercicios={leido.ejercicios} />
             ))}
 
             {entreno.notas !== null && (
-              <View style={estilos.notas}>
-                <Text style={[estilos.tituloDeNotas, { color: paleta.texto }]}>Notas</Text>
-                <Text style={[estilos.textoDeNotas, { color: paleta.texto }]}>{entreno.notas}</Text>
+              <View testID="notas" style={estilos.notas}>
+                <Text accessibilityRole="header" style={[estilos.tituloDeNotas, { color: paleta.texto }]}>
+                  Notas
+                </Text>
+                <View
+                  testID="caja-de-notas"
+                  style={[estilos.cajaDeNotas, { backgroundColor: paleta.superficie, borderColor: paleta.bordeSuave }]}
+                >
+                  <Text style={[estilos.textoDeNotas, { color: paleta.texto }]}>{entreno.notas}</Text>
+                </View>
               </View>
             )}
 
-            {/* Por ahora solo el gimnasio tiene editor. */}
-            {entreno.disciplina === 'gimnasio' && (
+            <View testID="botones" style={estilos.botones}>
+              {errorAlBorrar !== null && (
+                <Text accessibilityLiveRegion="polite" style={[estilos.error, { color: paleta.error }]}>
+                  {errorAlBorrar}
+                </Text>
+              )}
+              {/* Por ahora solo el gimnasio tiene editor. */}
+              {entreno.disciplina === 'gimnasio' && (
+                <Boton
+                  titulo={leido.corrigiendo ? 'Seguir corrigiendo' : 'Corregir'}
+                  variante="secundario"
+                  deshabilitado={borrando}
+                  alPulsar={() => router.navigate({ pathname: '/apuntar/gimnasio', params: { corregir: entreno.id } })}
+                />
+              )}
               <Boton
-                titulo={leido.corrigiendo ? 'Seguir corrigiendo' : 'Corregir'}
-                variante="secundario"
+                titulo={borrando ? 'Borrando' : 'Borrar entreno'}
+                variante="error"
                 deshabilitado={borrando}
-                alPulsar={() => router.navigate({ pathname: '/apuntar/gimnasio', params: { corregir: entreno.id } })}
+                alPulsar={() => borrar(entreno)}
               />
-            )}
-            <Boton
-              titulo={borrando ? 'Borrando' : 'Borrar entreno'}
-              variante="error"
-              deshabilitado={borrando}
-              alPulsar={() => borrar(entreno)}
-            />
+            </View>
           </>
         )}
       </ScrollView>
@@ -168,8 +191,9 @@ const estilos = StyleSheet.create({
     flex: 1,
   },
   contenido: {
-    padding: espacio[4],
-    gap: espacio[4],
+    paddingTop: espacio[2],
+    paddingHorizontal: espacio[4],
+    gap: espacio[3],
   },
   error: {
     fontSize: texto.m,
@@ -179,30 +203,23 @@ const estilos = StyleSheet.create({
     textAlign: 'center',
     marginTop: espacio[8],
   },
-  cabecera: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: espacio[3],
-  },
-  resumen: {
-    flex: 1,
-    gap: espacio[1],
-  },
-  cuando: {
-    fontSize: texto.l,
-    fontWeight: '600',
-  },
-  dato: {
-    fontSize: texto.xl,
-  },
-  esfuerzo: {
-    fontSize: texto.m,
-  },
+  // Las notas y los botones van algo más separados de lo de encima, como en la maqueta.
   notas: {
-    gap: espacio[1],
+    marginTop: espacio[1],
+    gap: espacio[2],
   },
   tituloDeNotas: titulos.seccion,
+  cajaDeNotas: {
+    paddingVertical: espacio[3],
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderRadius: radio.boton,
+  },
   textoDeNotas: {
     fontSize: texto.m,
+  },
+  botones: {
+    marginTop: espacio[1],
+    gap: espacio[1],
   },
 });

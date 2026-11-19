@@ -521,6 +521,30 @@ export function unirConY(nombres: string[]): string {
   return nombres.length <= 1 ? (nombres[0] ?? '') : `${nombres.slice(0, -1).join(', ')} y ${nombres[nombres.length - 1]}`;
 }
 
+/** Lo que conviene saber de un ejercicio al apuntarlo o al leerlo: «peso por mancuerna», «en segundos» o null. */
+export function notaDelEjercicio(ejercicio: Ejercicio | undefined): string | null {
+  if (ejercicio?.porMancuerna) return 'peso por mancuerna';
+  return ejercicio?.mide.includes('tiempo') ? 'en segundos' : null;
+}
+
+/**
+ * Las notas de un bloque, debajo de su nombre, en el editor y en el detalle:
+ * en un ejercicio suelto, la suya, «Peso por mancuerna»; en una superserie, la
+ * de cada ejercicio que la lleve, con su nombre delante: «Zancadas: peso por
+ * mancuerna». Cada una lleva la columna de su ejercicio.
+ */
+export function notasDelBloque(
+  ejercicios: readonly (Ejercicio | undefined)[],
+  nombres: readonly string[],
+): { c: number; texto: string }[] {
+  const superserie = nombres.length > 1;
+  return ejercicios.flatMap((ejercicio, c) => {
+    const nota = notaDelEjercicio(ejercicio);
+    if (nota === null) return [];
+    return [{ c, texto: superserie ? `${nombres[c]}: ${nota}` : nota.charAt(0).toUpperCase() + nota.slice(1) }];
+  });
+}
+
 export type NombreDeBloque = {
   /** Para meterlo en una frase: «Press banca», «la superserie de Press banca y Remo con barra», «la carrera en cinta». */
   enFrase: string;

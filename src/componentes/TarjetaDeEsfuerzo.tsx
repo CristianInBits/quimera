@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
-import { EscenarioDeLaMascota, type ProporcionesDelEscenario } from '@/componentes/EscenarioDeLaMascota';
+import { EscenarioDeLaMascota, PROPORCIONES_DEL_ESFUERZO } from '@/componentes/EscenarioDeLaMascota';
 import { Tarjeta } from '@/componentes/Tarjeta';
 import type { Disciplina } from '@/datos/entrenos';
 import { palabraDelEsfuerzo } from '@/gimnasio/editor';
@@ -9,8 +9,6 @@ import { datos, esLetraGrande, espacio, radio, texto, titulos } from '@/tema/med
 
 /** El lado del círculo de fuera del escenario de la mascota. */
 const ESCENARIO = 120;
-/** Las del escenario del esfuerzo en la maqueta: el dibujo asoma un poco por encima de la caja. */
-const PROPORCIONES_DEL_ESFUERZO: ProporcionesDelEscenario = { arriba: 0.133, interior: 0.733, dibujo: 1.1, alzado: 0.033 };
 /** Las cifras del 1 al 10, en dos filas de cinco. */
 const FILAS = [
   [1, 2, 3, 4, 5],

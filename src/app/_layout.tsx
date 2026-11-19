@@ -59,6 +59,9 @@ export default function Raiz() {
         <Stack
           screenOptions={{
             headerShown: false,
+            // En el iPhone con iOS 26, una cabecera sin fondo sería de cristal (Liquid Glass) y el
+            // principio de cada pantalla quedaría debajo de ella: va opaca, sobre el fondo.
+            headerTransparent: false,
             headerShadowVisible: false,
             headerTitleStyle: titulos.cabecera,
             contentStyle: { backgroundColor: paleta.fondo },

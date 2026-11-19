@@ -1,6 +1,6 @@
 import { act, fireEvent, waitFor, within } from '@testing-library/react-native';
 import { renderRouter, screen, testRouter } from 'expo-router/testing-library';
-import { Alert, Platform, StyleSheet } from 'react-native';
+import { AccessibilityInfo, Alert, Platform, StyleSheet, useColorScheme } from 'react-native';
 
 import Historial from '@/app/(pestanas)/historial';
 import Pestanas from '@/app/(pestanas)/_layout';
@@ -10,8 +10,9 @@ import Apuntar from '@/app/apuntar';
 import ApuntarGimnasio from '@/app/apuntar/gimnasio';
 import DetalleDelEntreno from '@/app/entreno/[id]';
 import { p, puertaDe } from '@/datos/base';
+import * as entrenos from '@/datos/entrenos';
 import { borrarEntrenoEn, guardarEntrenoEn, type Entreno } from '@/datos/entrenos';
-import { fechaLocal, sumarDias } from '@/datos/fechas';
+import { fechaLocal, sumarDias, textoDeFecha } from '@/datos/fechas';
 import { CLAVE_DEL_BORRADOR, claveDeCorreccion } from '@/gimnasio/editor';
 import { recogerElBorrado } from '@/historial/ultimoBorrado';
 import type { BaseDePrueba } from '@/pruebas/baseDePrueba';
@@ -25,6 +26,14 @@ jest.mock('expo-sqlite', () => ({
   SQLiteProvider: ({ children }: { children: unknown }) => children,
   useSQLiteContext: () => mockBase,
 }));
+// En el iPhone con iOS 26, expo-router hace de cristal (Liquid Glass) las cabeceras a las que
+// nadie da fondo. jest-expo ya simula un iPhone con cristal; la prueba del cristal lo fija, por
+// si eso cambia, y las demás se quedan con lo de jest-expo.
+let mockCristal: boolean | undefined;
+jest.mock('expo-glass-effect', () => {
+  const real = jest.requireActual('expo-glass-effect');
+  return { ...real, isLiquidGlassAvailable: () => mockCristal ?? real.isLiquidGlassAvailable() };
+});
 jest.mock('@/datos/movil', () => {
   const { generadorDeIds } = jest.requireActual('@/pruebas/datos');
   return { nuevoId: generadorDeIds(), prepararBaseDelMovil: async () => undefined };
@@ -47,6 +56,24 @@ const espiar = <T extends jest.SpyInstance>(espia: T): T => {
   return espia;
 };
 const dejarPasar = (ms = 2000) => act(() => jest.advanceTimersByTimeAsync(ms));
+
+/** Lo que la pantalla de arriba de la pila le pasa a la cabecera nativa. */
+function propsDeLaCabecera(): Record<string, unknown> {
+  const todas: Record<string, unknown>[] = [];
+  const recorrer = (nodo: ReturnType<typeof screen.getByText>) => {
+    if (nodo.type === 'RNSScreenStackHeaderConfig') todas.push(nodo.props);
+    for (const hijo of nodo.children) if (typeof hijo !== 'string') recorrer(hijo);
+  };
+  if (screen.root !== null) recorrer(screen.root);
+  return todas.at(-1) ?? {};
+}
+
+/** De la cabecera de arriba de la pila: si se esconde, su título y el de su botón de volver. */
+function cabeceraDeLaPila() {
+  const { hidden, title, backTitle } = propsDeLaCabecera();
+  return { hidden, title, backTitle };
+}
+const tituloDeLaPila = () => cabeceraDeLaPila().title;
 const ids = generadorDeIds();
 const hoy = () => fechaLocal(new Date());
 
@@ -266,8 +293,184 @@ describe('El historial y el detalle de un entreno', () => {
     expect(screen.getByLabelText('Vuelta 2, Remo con barra: 50 kg × 10')).toBeOnTheScreen();
     expect(screen.getByText('Descansos: 1:30 entre vueltas · 1:00 antes del siguiente')).toBeOnTheScreen();
     expect(screen.getByLabelText('Serie 1: 1:00')).toBeOnTheScreen();
+    // La plancha se mide en segundos, y el detalle lo dice, como el editor.
+    expect(screen.getByText('En segundos')).toBeOnTheScreen();
     expect(screen.getByText('Buen día')).toBeOnTheScreen();
     expect(screen.getByText('Esfuerzo 7, duro')).toBeOnTheScreen();
+  });
+
+  it('el detalle, como en la maqueta: el resumen arriba, cada bloque en su tarjeta, las notas en su caja y los botones juntos', async () => {
+    await guardar(deHoy());
+    await abrirElDeHoy();
+
+    const detalle = screen.getByTestId('detalle');
+    expect(StyleSheet.flatten(detalle.props.contentContainerStyle)).toMatchObject({
+      paddingTop: 8,
+      paddingHorizontal: 16,
+      gap: 12,
+      paddingBottom: 32,
+    });
+    const partes = (within(detalle).getByTestId('resumen').parent?.children ?? []) as ReturnType<typeof screen.getByText>[];
+    expect(partes.map((parte) => parte.props.testID)).toEqual(['resumen', 'bloque', 'bloque', 'bloque', 'notas', 'botones']);
+    expect(within(detalle).getByTestId('resumen')).toHaveStyle({ backgroundColor: PALETAS.claro.disciplina.gimnasio.tinte });
+    expect(within(detalle).getByTestId('duracion').props.accessibilityLabel).toBe('45 minutos');
+
+    const notas = screen.getByTestId('notas');
+    expect(notas).toHaveStyle({ marginTop: 4, gap: 8 });
+    expect(within(notas).getByRole('header', { name: 'Notas' })).toHaveStyle({ fontFamily: 'Nunito_800ExtraBold', fontSize: 20 });
+    const caja = within(notas).getByTestId('caja-de-notas');
+    expect(caja).toHaveStyle({
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      borderWidth: 1,
+      borderRadius: 18,
+      backgroundColor: PALETAS.claro.superficie,
+      borderColor: PALETAS.claro.bordeSuave,
+    });
+    expect(within(caja).getByText('Buen día')).toHaveStyle({ fontSize: 16, color: PALETAS.claro.texto });
+
+    const botones = screen.getByTestId('botones');
+    expect(botones).toHaveStyle({ marginTop: 4, gap: 4 });
+    expect(within(botones).getAllByRole('button').map((boton) => boton.props.accessibilityLabel)).toEqual([
+      'Corregir',
+      'Borrar entreno',
+    ]);
+  });
+
+  it('un entreno sin notas no lleva su caja, y un ejercicio con mancuernas dice que el peso es por mancuerna', async () => {
+    const entreno = deLaSemanaPasada();
+    await guardar({
+      ...entreno,
+      bloques: [{ ...entreno.bloques[0], series: [serie(1, 1, 'zancadas', { repeticiones: 12, pesoG: 14_000 })] }],
+    });
+    await renderRouter(RUTAS, { initialUrl: `/entreno/${entreno.id}` });
+    await screen.findByText('Borrar entreno');
+    expect(screen.getByText('Peso por mancuerna')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Serie 1: 14 kg × 12')).toBeOnTheScreen();
+    expect(screen.queryByTestId('notas')).toBeNull();
+    // El resumen cuenta la fecha desde hoy: hace una semana, y sin hora.
+    expect(within(screen.getByTestId('resumen')).getByText(textoDeFecha(entreno.fecha, hoy()))).toBeOnTheScreen();
+  });
+
+  it('un entreno de otra disciplina lleva su nombre con su marca y su tinte, y todavía no se puede corregir', async () => {
+    const entreno: Entreno = { ...deLaSemanaPasada(), disciplina: 'hyrox' };
+    await guardar(entreno);
+    await renderRouter(RUTAS, { initialUrl: `/entreno/${entreno.id}` });
+    await screen.findByText('Borrar entreno');
+    expect(tituloDeLaPila()).toBe('Hyrox');
+    const titulo = screen.getByRole('header', { name: 'Hyrox' });
+    const [marca] = (titulo.parent as typeof titulo).children as (typeof titulo)[];
+    expect(marca).toHaveStyle({ backgroundColor: PALETAS.claro.disciplina.hyrox.marca });
+    expect(screen.getByTestId('resumen')).toHaveStyle({ backgroundColor: PALETAS.claro.disciplina.hyrox.tinte });
+    expect(within(screen.getByTestId('botones')).getAllByRole('button').map((boton) => boton.props.accessibilityLabel)).toEqual([
+      'Borrar entreno',
+    ]);
+  });
+
+  it('si no se puede leer el entreno, lo dice, y la cabecera dice «Entreno»', async () => {
+    espiar(jest.spyOn(entrenos, 'leerEntreno').mockRejectedValue(new Error('base rota')));
+    await renderRouter(RUTAS, { initialUrl: '/entreno/cualquiera' });
+    expect(await screen.findByText(/^No se pudo leer el entreno\./)).toBeOnTheScreen();
+    expect(cabeceraDeLaPila()).toEqual({ hidden: false, title: 'Entreno', backTitle: 'Historial' });
+    expect(screen.queryByTestId('marca-de-disciplina')).toBeNull();
+  });
+
+  it('la cabecera lleva la marca de la disciplina delante de su nombre; en el iPhone, la pila recibe el título y no se anuncia', async () => {
+    const anuncio = espiar(jest.spyOn(AccessibilityInfo, 'announceForAccessibility'));
+    // El simulado viene con las llamadas de las pruebas de antes: solo cuentan las de esta.
+    anuncio.mockClear();
+    const entreno = deHoy();
+    await guardar(entreno);
+    await renderRouter(RUTAS, { initialUrl: `/entreno/${entreno.id}` });
+    // Mientras se lee el entreno, sin título, para no enseñar uno que cambie enseguida; la
+    // vuelta atrás ya dice adónde vuelve.
+    expect(cabeceraDeLaPila()).toEqual({ hidden: false, title: '', backTitle: 'Historial' });
+    await screen.findByText('Borrar entreno');
+    const titulo = screen.getByRole('header', { name: 'Gimnasio' });
+    const [marca, texto] = (titulo.parent as typeof titulo).children as (typeof titulo)[];
+    expect(marca.props.testID).toBe('marca-de-disciplina');
+    expect(marca).toHaveStyle({ minWidth: 32, minHeight: 32, backgroundColor: PALETAS.claro.disciplina.gimnasio.marca });
+    expect(texto.props.children).toBe('Gimnasio');
+    expect(cabeceraDeLaPila()).toEqual({ hidden: false, title: 'Gimnasio', backTitle: 'Historial' });
+    await dejarPasar();
+    expect(anuncio).not.toHaveBeenCalledWith('Gimnasio');
+  });
+
+  it('en Android, la pila recibe un título vacío, para que el título con su marca empiece tras la flecha, y TalkBack lo dice una vez', async () => {
+    const anuncio = espiar(jest.spyOn(AccessibilityInfo, 'announceForAccessibility'));
+    anuncio.mockClear();
+    const android = jest.replaceProperty(Platform, 'OS', 'android');
+    try {
+      const entreno = deLaSemanaPasada();
+      await guardar(entreno);
+      await renderRouter(RUTAS, { initialUrl: `/entreno/${entreno.id}` });
+      await screen.findByText('Borrar entreno');
+      expect(tituloDeLaPila()).toBe('');
+      expect(screen.getByRole('header', { name: 'Gimnasio' })).toBeOnTheScreen();
+      expect(anuncio).toHaveBeenCalledWith('Gimnasio');
+      // Al volver de corregirlo se vuelve a leer, pero no se vuelve a anunciar.
+      await fireEvent.press(screen.getByText('Corregir'));
+      await screen.findByText('Guardar los cambios');
+      await testRouter.back(`/entreno/${entreno.id}`);
+      await screen.findByText('Borrar entreno');
+      await dejarPasar();
+      expect(anuncio.mock.calls.filter(([texto]) => texto === 'Gimnasio')).toHaveLength(1);
+    } finally {
+      android.restore();
+    }
+  });
+
+  it('un entreno que ya no está: la cabecera dice «Entreno», sin marca, y no se anuncia nada', async () => {
+    const anuncio = espiar(jest.spyOn(AccessibilityInfo, 'announceForAccessibility'));
+    anuncio.mockClear();
+    const android = jest.replaceProperty(Platform, 'OS', 'android');
+    try {
+      const entreno = deLaSemanaPasada();
+      await guardar(entreno);
+      await puertaDe(mockBase).escribir((tx) => borrarEntrenoEn(tx, entreno.id, Date.now()));
+      await renderRouter(RUTAS, { initialUrl: `/entreno/${entreno.id}` });
+      expect(await screen.findByText('Este entreno ya no está: se ha borrado.')).toBeOnTheScreen();
+      expect(cabeceraDeLaPila()).toEqual({ hidden: false, title: 'Entreno', backTitle: 'Historial' });
+      expect(screen.queryByTestId('marca-de-disciplina')).toBeNull();
+      await dejarPasar();
+      expect(anuncio).not.toHaveBeenCalled();
+    } finally {
+      android.restore();
+    }
+  });
+
+  it('si el entreno se borra con el detalle abierto, al volver a él la cabecera dice «Entreno», sin la marca de antes', async () => {
+    const entreno = deLaSemanaPasada();
+    await guardar(entreno);
+    await renderRouter(RUTAS, { initialUrl: `/entreno/${entreno.id}` });
+    await fireEvent.press(await screen.findByText('Corregir'));
+    await screen.findByText('Guardar los cambios');
+    // Mientras se corrige, el entreno se borra. Con los temporizadores falsos, la base de
+    // prueba solo avanza si se deja pasar el tiempo.
+    const borrado = puertaDe(mockBase).escribir((tx) => borrarEntrenoEn(tx, entreno.id, Date.now()));
+    await dejarPasar();
+    await borrado;
+    await testRouter.back(`/entreno/${entreno.id}`);
+    expect(await screen.findByText('Este entreno ya no está: se ha borrado.')).toBeOnTheScreen();
+    expect(cabeceraDeLaPila()).toEqual({ hidden: false, title: 'Entreno', backTitle: 'Historial' });
+    expect(screen.queryByRole('header', { name: 'Gimnasio' })).toBeNull();
+  });
+
+  describe.each(['claro', 'oscuro'] as const)('en modo %s', (modo) => {
+    const paleta = PALETAS[modo];
+    beforeEach(() => jest.mocked(useColorScheme).mockReturnValue(modo === 'oscuro' ? 'dark' : 'light'));
+    afterEach(() => jest.mocked(useColorScheme).mockReturnValue('light'));
+
+    it('el detalle: el resumen con el tinte de su disciplina, y las notas, con su título en el color del texto y su caja sobre la superficie', async () => {
+      await guardar(deHoy());
+      await abrirElDeHoy();
+      expect(screen.getByTestId('resumen')).toHaveStyle({ backgroundColor: paleta.disciplina.gimnasio.tinte });
+      const notas = screen.getByTestId('notas');
+      expect(within(notas).getByRole('header', { name: 'Notas' })).toHaveStyle({ color: paleta.texto });
+      const caja = within(notas).getByTestId('caja-de-notas');
+      expect(caja).toHaveStyle({ backgroundColor: paleta.superficie, borderColor: paleta.bordeSuave });
+      expect(within(caja).getByText('Buen día')).toHaveStyle({ color: paleta.texto });
+    });
   });
 
   it('borrar no pregunta: vuelve al historial con el aviso, y Deshacer lo devuelve', async () => {
@@ -318,12 +521,97 @@ describe('El historial y el detalle de un entreno', () => {
     expect(borradores()).toEqual([]);
   });
 
+  it('en el iPhone con Liquid Glass, la cabecera del detalle y la del editor al corregir van opacas, sobre el fondo', async () => {
+    mockCristal = true;
+    try {
+      await guardar(deHoy());
+      await abrirElDeHoy();
+      expect(propsDeLaCabecera()).toMatchObject({ title: 'Gimnasio', translucent: false, backgroundColor: PALETAS.claro.fondo });
+      await fireEvent.press(screen.getByText('Corregir'));
+      await screen.findByText('Guardar los cambios');
+      expect(propsDeLaCabecera()).toMatchObject({
+        title: 'Corregir entreno',
+        translucent: false,
+        backgroundColor: PALETAS.claro.fondo,
+      });
+    } finally {
+      mockCristal = undefined;
+    }
+  });
+
+  it('en el iPhone con Liquid Glass, la cabecera de Apuntar también va opaca, sobre el fondo', async () => {
+    mockCristal = true;
+    try {
+      await renderRouter(RUTAS, { initialUrl: '/apuntar' });
+      await screen.findByTestId('gimnasio');
+      expect(propsDeLaCabecera()).toMatchObject({
+        title: 'Apuntar un entreno',
+        translucent: false,
+        backgroundColor: PALETAS.claro.fondo,
+      });
+    } finally {
+      mockCristal = undefined;
+    }
+  });
+
+  it('el error al leer se va si, al volver al detalle, el entreno se puede leer', async () => {
+    espiar(jest.spyOn(entrenos, 'leerEntreno').mockRejectedValueOnce(new Error('base ocupada')));
+    const entreno = deHoy();
+    await guardar(entreno);
+    await renderRouter(RUTAS, { initialUrl: `/entreno/${entreno.id}` });
+    expect(await screen.findByText(/^No se pudo leer el entreno\./)).toBeOnTheScreen();
+    await testRouter.push('/apuntar');
+    await screen.findByTestId('gimnasio');
+    await testRouter.back(`/entreno/${entreno.id}`);
+    await screen.findByText('Borrar entreno');
+    expect(screen.queryByText(/^No se pudo leer el entreno\./)).toBeNull();
+  });
+
+  it('el aviso de un borrado que falló se va al volver al detalle, que se relee', async () => {
+    espiar(jest.spyOn(entrenos, 'borrarEntrenoEn').mockRejectedValueOnce(new Error('base llena')));
+    const entreno = deHoy();
+    await guardar(entreno);
+    await abrirElDeHoy();
+    await fireEvent.press(screen.getByText('Borrar entreno'));
+    await within(screen.getByTestId('botones')).findByText(/^No se pudo borrar el entreno\./);
+    await fireEvent.press(screen.getByText('Corregir'));
+    await screen.findByText('Guardar los cambios');
+    await testRouter.back(`/entreno/${entreno.id}`);
+    await screen.findByText('Borrar entreno');
+    await dejarPasar();
+    expect(screen.queryByText(/^No se pudo borrar el entreno\./)).toBeNull();
+  });
+
+  it('si no se puede borrar, lo dice junto a los botones y lo anuncia, y al volver a intentarlo se quita', async () => {
+    const anuncio = espiar(jest.spyOn(AccessibilityInfo, 'announceForAccessibility'));
+    anuncio.mockClear();
+    espiar(jest.spyOn(entrenos, 'borrarEntrenoEn').mockRejectedValueOnce(new Error('base llena')));
+    await guardar(deHoy());
+    const app = await abrirElDeHoy();
+    await fireEvent.press(screen.getByText('Borrar entreno'));
+
+    const aviso = await within(screen.getByTestId('botones')).findByText(/^No se pudo borrar el entreno./);
+    expect(aviso.props.accessibilityLiveRegion).toBe('polite');
+    expect(aviso).toHaveStyle({ color: PALETAS.claro.error });
+    expect(anuncio).toHaveBeenCalledWith(aviso.props.children);
+    // Arriba, donde no se ve desde los botones, no sale nada.
+    expect(screen.getAllByText(/^No se pudo borrar el entreno./)).toHaveLength(1);
+    expect(mockBase.mirar('SELECT borrado FROM entreno')).toEqual([{ borrado: 0 }]);
+
+    // Al volver a intentarlo, el aviso se va, y esta vez se borra.
+    await fireEvent.press(screen.getByText('Borrar entreno'));
+    expect(screen.queryByText(/^No se pudo borrar el entreno./)).toBeNull();
+    await waitFor(() => expect(app.getPathname()).toBe('/historial'));
+    expect(mockBase.mirar('SELECT borrado FROM entreno')).toEqual([{ borrado: 1 }]);
+  });
+
   it('el detalle abierto directamente tiene las pestañas debajo, y su vuelta atrás dice Historial', async () => {
     const entreno = deHoy();
     await guardar(entreno);
     const app = await renderRouter(RUTAS, { initialUrl: `/entreno/${entreno.id}` });
     await screen.findByText('Borrar entreno');
     expect(app.getRouterState()?.routes[0]?.state?.routes.map((ruta) => ruta.name)).toEqual(['(pestanas)', 'entreno/[id]']);
+    expect(cabeceraDeLaPila()).toEqual({ hidden: false, title: 'Gimnasio', backTitle: 'Historial' });
   });
 
   it('borrar y deshacer un entreno con una corrección a medias la deja guardarse encima, sin duplicarlo', async () => {

@@ -16,6 +16,8 @@ import {
   marcarHecha,
   minutosMedidos,
   nombresDeLosBloques,
+  notaDelEjercicio,
+  notasDelBloque,
   palabraDelEsfuerzo,
   pasoDeCarrera,
   pasoDeDescanso,
@@ -316,6 +318,27 @@ describe('El editor de gimnasio', () => {
 
   it('une los nombres con comas y una y', () => {
     expect([[], ['A'], ['A', 'B'], ['A', 'B', 'C']].map(unirConY)).toEqual(['', 'A', 'A y B', 'A, B y C']);
+  });
+
+  it('dice lo que conviene saber de cada ejercicio: el peso por mancuerna, o que va en segundos', () => {
+    expect(notaDelEjercicio(EJERCICIOS.get('curl-mancuernas'))).toBe('peso por mancuerna');
+    expect(notaDelEjercicio(EJERCICIOS.get('plancha'))).toBe('en segundos');
+    expect(notaDelEjercicio(EJERCICIOS.get('press-banca'))).toBeNull();
+    // Un ejercicio que no se encuentra no dice nada.
+    expect(notaDelEjercicio(undefined)).toBeNull();
+  });
+
+  it('las notas de un bloque: la suya, con mayúscula, o en una superserie, cada una con el nombre de su ejercicio', () => {
+    const curl = EJERCICIOS.get('curl-mancuernas');
+    const plancha = EJERCICIOS.get('plancha');
+    const press = EJERCICIOS.get('press-banca');
+    expect(notasDelBloque([curl], ['Curl con mancuernas'])).toEqual([{ c: 0, texto: 'Peso por mancuerna' }]);
+    expect(notasDelBloque([plancha], ['Plancha'])).toEqual([{ c: 0, texto: 'En segundos' }]);
+    expect(notasDelBloque([press], ['Press banca'])).toEqual([]);
+    expect(notasDelBloque([press, curl, plancha], ['Press banca', 'Curl con mancuernas', 'Plancha'])).toEqual([
+      { c: 1, texto: 'Curl con mancuernas: peso por mancuerna' },
+      { c: 2, texto: 'Plancha: en segundos' },
+    ]);
   });
 
   it('nombra cada bloque, con su ordinal si un ejercicio se repite o hay varias carreras', () => {

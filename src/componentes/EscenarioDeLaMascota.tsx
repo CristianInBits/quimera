@@ -20,6 +20,13 @@ export type ProporcionesDelEscenario = {
 export const PROPORCIONES: ProporcionesDelEscenario = { arriba: 0.125, interior: 0.74, dibujo: 1.15, alzado: 0.03 };
 
 /**
+ * Las del escenario de un esfuerzo, junto a su cifra, en la tarjeta del
+ * esfuerzo del editor y en el resumen de un entreno: el dibujo asoma un poco
+ * por encima de la caja.
+ */
+export const PROPORCIONES_DEL_ESFUERZO: ProporcionesDelEscenario = { arriba: 0.133, interior: 0.733, dibujo: 1.1, alzado: 0.033 };
+
+/**
  * La mascota de una disciplina sobre su escenario: dos círculos de su color,
  * uno dentro de otro, con el dibujo encima, que asoma por arriba. Los dibujos
  * visten de oscuro y, sin escenario, en el modo oscuro se perderían.
