@@ -1,5 +1,13 @@
 import { NOMBRE_DE_DISCIPLINA, type Disciplina } from '@/datos/entrenos';
-import { PALETAS, coloresDeLaBarra, type Paleta } from '@/tema/colores';
+import {
+  PALETAS,
+  coloresDeLaBarra,
+  sombraDeEntreno,
+  sombraDeTarjeta,
+  sombraDeTarjetaQueSeAbre,
+  sombraDelBotonPrincipal,
+  type Paleta,
+} from '@/tema/colores';
 
 const DISCIPLINAS = Object.keys(NOMBRE_DE_DISCIPLINA) as Disciplina[];
 
@@ -59,6 +67,12 @@ function oklab([r, g, b]: [number, number, number]): [number, number, number] {
   ];
 }
 
+/** Cuánto color tiene un color en OKLab: 0 en los grises, y más de 0,1 en los muy vivos. */
+function croma(hex: string): number {
+  const [, a, b] = oklab(lineal(hex));
+  return Math.hypot(a, b);
+}
+
 /** La distancia entre dos colores en OKLab, por 100: con 8 se distinguen bien, y con 15, de un vistazo. */
 function distancia(a: string, b: string, vision?: keyof typeof DALTONISMO): number {
   const ver = (hex: string) => oklab(vision === undefined ? lineal(hex) : simular(lineal(hex), DALTONISMO[vision]));
@@ -110,12 +124,16 @@ describe.each(['claro', 'oscuro'] as const)('Los colores en modo %s', (modo) => 
     }
   });
 
-  it('el rosa se lee como texto, también sobre los tintes y en la insignia, y lo que va encima del rosa se lee', () => {
-    for (const fondo of [paleta.fondo, paleta.superficie]) {
+  it('el color de las acciones se lee sobre las pantallas, las tarjetas, las filas, lo elegido y el tinte del gimnasio, y lo que va encima de él se lee', () => {
+    const alrededor = [
+      paleta.fondo,
+      paleta.superficie,
+      paleta.superficieSuave,
+      paleta.tintePrimario,
+      paleta.disciplina.gimnasio.tinte,
+    ];
+    for (const fondo of alrededor) {
       expect(contraste(paleta.primario, fondo)).toBeGreaterThanOrEqual(4.5);
-    }
-    for (const fondo of [paleta.fondo, paleta.superficie, paleta.tintePrimario, paleta.insignia, ...tintes(paleta)]) {
-      expect(contraste(paleta.primarioTexto, fondo)).toBeGreaterThanOrEqual(4.5);
     }
     expect(contraste(paleta.sobrePrimario, paleta.primario)).toBeGreaterThanOrEqual(4.5);
   });
@@ -127,7 +145,7 @@ describe.each(['claro', 'oscuro'] as const)('Los colores en modo %s', (modo) => 
     }
   });
 
-  it('el rosa de las acciones es el del gimnasio', () => {
+  it('el color de las acciones es el del gimnasio', () => {
     expect(paleta.primario).toBe(paleta.disciplina.gimnasio.marca);
   });
 
@@ -143,6 +161,14 @@ describe.each(['claro', 'oscuro'] as const)('Los colores en modo %s', (modo) => 
       expect(contraste(dentro, '#000000')).toBeGreaterThanOrEqual(2);
       expect(fuera).not.toBe(dentro);
     }
+  });
+
+  it('en la gráfica, esta semana va en el color de las acciones, y las demás, en grises', () => {
+    const { anteriores, pasada, esta } = paleta.grafica;
+    expect(esta).toBe(paleta.primario);
+    // Los grises de ahora no pasan de 0,025, y los rosas de antes iban de 0,08 a 0,14.
+    expect(croma(anteriores)).toBeLessThan(0.03);
+    expect(croma(pasada)).toBeLessThan(0.03);
   });
 
   it('las barras de la gráfica van de menos a más marcadas, y la más suave se ve en la tarjeta', () => {
@@ -178,8 +204,15 @@ describe.each(['claro', 'oscuro'] as const)('Los colores en modo %s', (modo) => 
     }
   });
 
-  it('en la barra de pestañas de Android se ve cuál está elegida', () => {
+  it('en la barra de pestañas de Android se ve cuál está elegida: su píldora va en el color de las acciones, y las demás, en el tenue', () => {
     const barra = coloresDeLaBarra(paleta, 'android');
+    expect(barra).toMatchObject({
+      indicador: paleta.primario,
+      iconoElegido: paleta.sobrePrimario,
+      etiquetaElegida: paleta.texto,
+      icono: paleta.textoTenue,
+      etiqueta: paleta.textoTenue,
+    });
     expect(contraste(barra.indicador, barra.fondo)).toBeGreaterThanOrEqual(3);
     expect(contraste(barra.iconoElegido, barra.indicador)).toBeGreaterThanOrEqual(3);
     expect(contraste(barra.icono, barra.fondo)).toBeGreaterThanOrEqual(3);
@@ -187,8 +220,14 @@ describe.each(['claro', 'oscuro'] as const)('Los colores en modo %s', (modo) => 
     expect(contraste(barra.etiquetaElegida, barra.fondo)).toBeGreaterThanOrEqual(4.5);
   });
 
-  it('en la barra de pestañas del iPhone se leen los iconos y las etiquetas', () => {
+  it('en la barra de pestañas del iPhone se leen los iconos y las etiquetas, y el icono elegido va en el color de las acciones, y los demás, en el tenue', () => {
     const barra = coloresDeLaBarra(paleta, 'ios');
+    expect(barra).toMatchObject({
+      iconoElegido: paleta.primario,
+      etiquetaElegida: paleta.texto,
+      icono: paleta.textoTenue,
+      etiqueta: paleta.textoTenue,
+    });
     expect(contraste(barra.iconoElegido, barra.fondo)).toBeGreaterThanOrEqual(3);
     expect(contraste(barra.icono, barra.fondo)).toBeGreaterThanOrEqual(3);
     expect(contraste(barra.etiqueta, barra.fondo)).toBeGreaterThanOrEqual(4.5);
@@ -197,25 +236,114 @@ describe.each(['claro', 'oscuro'] as const)('Los colores en modo %s', (modo) => 
 });
 
 describe('Los colores de las disciplinas', () => {
-  // Los que aprobó Cristian el 15 de noviembre de 2026. Cambiar uno, o
-  // cambiar dos de sitio, tiene que ser a propósito.
+  // Los que aprobó Cristian el 15 de noviembre de 2026, con el café del
+  // gimnasio que eligió el 19. Cambiar uno, o cambiar dos de sitio, tiene que
+  // ser a propósito.
   it('son los aprobados, en claro y en oscuro', () => {
     const marcas = (modo: 'claro' | 'oscuro') =>
       Object.fromEntries(DISCIPLINAS.map((d) => [d, PALETAS[modo].disciplina[d].marca]));
     expect(marcas('claro')).toEqual({
-      gimnasio: '#c2185b',
+      gimnasio: '#5d3827',
       hyrox: '#ad7600',
       calistenia: '#5a2bb0',
       carrera: '#166a17',
       natacion: '#226ba0',
     });
     expect(marcas('oscuro')).toEqual({
-      gimnasio: '#f06aa8',
+      gimnasio: '#cf8d60',
       hyrox: '#f7c948',
       calistenia: '#9c6cff',
       carrera: '#4ad89b',
       natacion: '#6fb1ff',
     });
+  });
+});
+
+describe('Los colores del café', () => {
+  // Los que eligió Cristian el 19 de noviembre de 2026, la variante 7 del
+  // lienzo «Colores del gimnasio». Las pruebas de contraste no notarían que
+  // vuelve el rosa, porque el de antes también las pasaba: cambiar uno de
+  // estos tiene que ser a propósito.
+  it('el café, los neutros, los tintes, los escenarios y la gráfica son los elegidos, en claro', () => {
+    expect(PALETAS.claro).toMatchObject({
+      fondo: '#f8f7f5',
+      superficieSuave: '#f3f2ef',
+      bordeSuave: '#e8e5e0',
+      bordeControl: '#86807a',
+      texto: '#1f1c1a',
+      textoTenue: '#615b55',
+      primario: '#5d3827',
+      sobrePrimario: '#ffffff',
+      tintePrimario: '#f3eee9',
+      insignia: '#efedea',
+      escenarioDeInicio: ['#f4eee8', '#e9ddd1'],
+      grafica: { anteriores: '#b9b3ac', pasada: '#958e87', esta: '#5d3827' },
+    });
+    expect(PALETAS.claro.disciplina.gimnasio).toEqual({
+      marca: '#5d3827',
+      texto: '#5d3827',
+      tinte: '#f6f0ea',
+      borde: '#f6f0ea',
+      escenario: ['#efe4da', '#e5d5c7'],
+    });
+  });
+
+  it('el caramelo, los tintes, los escenarios y la gráfica son los elegidos, en oscuro', () => {
+    expect(PALETAS.oscuro).toMatchObject({
+      primario: '#cf8d60',
+      sobrePrimario: '#1d120c',
+      tintePrimario: '#231d1a',
+      insignia: '#232838',
+      escenarioDeInicio: ['#3b3029', '#55453a'],
+      grafica: { anteriores: '#5d6270', pasada: '#7c818f', esta: '#cf8d60' },
+    });
+    expect(PALETAS.oscuro.disciplina.gimnasio).toEqual({
+      marca: '#cf8d60',
+      texto: '#cf8d60',
+      tinte: '#1f1a17',
+      borde: '#312a25',
+      escenario: ['#3b3029', '#55453a'],
+    });
+  });
+});
+
+/** Los colores de una sombra, en el orden en que van, escritos como #rrggbb. */
+function coloresDeSombra(sombra: string | undefined): string[] {
+  return [...(sombra ?? '').matchAll(/rgba\((\d+), (\d+), (\d+), [\d.]+\)/g)].map(
+    ([, r, g, b]) => `#${[r, g, b].map((c) => Number(c).toString(16).padStart(2, '0')).join('')}`,
+  );
+}
+
+describe('Las sombras', () => {
+  const { claro, oscuro } = PALETAS;
+
+  it('en claro van en el color del texto, sin tinte, salvo el halo del gimnasio y la del botón principal, en el de las acciones', () => {
+    expect(coloresDeSombra(sombraDeTarjeta(claro))).toEqual([claro.texto, claro.texto]);
+    expect(coloresDeSombra(sombraDeTarjeta(claro, true))).toEqual([claro.texto, claro.texto]);
+    expect(coloresDeSombra(sombraDeEntreno(claro))).toEqual([claro.texto]);
+    expect(coloresDeSombra(sombraDeTarjetaQueSeAbre(claro))).toEqual([claro.texto, claro.primario]);
+    expect(coloresDeSombra(sombraDelBotonPrincipal(claro))).toEqual([claro.primario]);
+  });
+
+  it('en oscuro, la del botón principal va en el color de las acciones', () => {
+    expect(coloresDeSombra(sombraDelBotonPrincipal(oscuro))).toEqual([oscuro.primario]);
+  });
+
+  // Las del estilo «grafito» de la variante 7, con su opacidad: la del botón
+  // principal pesa algo menos que la rosa (de 0,28 a 0,2 en claro y de 0,22 a 0,16
+  // en oscuro), como en el lienzo, y el halo del gimnasio, que no salía en él, pesa
+  // lo mismo que el rosa con 0,1. Cambiarlas tiene que ser a propósito.
+  it('son las elegidas, con su opacidad', () => {
+    expect(sombraDeTarjeta(claro)).toBe('0 1px 2px rgba(31, 28, 26, 0.05), 0 6px 20px rgba(31, 28, 26, 0.06)');
+    expect(sombraDeTarjeta(claro, true)).toBe('0 1px 2px rgba(31, 28, 26, 0.05), 0 8px 24px rgba(31, 28, 26, 0.07)');
+    expect(sombraDeTarjeta(oscuro)).toBeUndefined();
+    expect(sombraDeTarjeta(oscuro, true)).toBe('0 12px 32px rgba(0, 0, 0, 0.35)');
+    expect(sombraDeEntreno(claro)).toBe('0 1px 2px rgba(31, 28, 26, 0.06)');
+    expect(sombraDeEntreno(oscuro)).toBeUndefined();
+    expect(sombraDeTarjetaQueSeAbre(claro)).toBe('0 1px 2px rgba(31, 28, 26, 0.05), 0 8px 24px rgba(93, 56, 39, 0.1)');
+    expect(sombraDeTarjetaQueSeAbre(oscuro)).toBeUndefined();
+    expect(sombraDelBotonPrincipal(claro)).toBe('0 8px 20px rgba(93, 56, 39, 0.2)');
+    expect(sombraDelBotonPrincipal(oscuro)).toBe('0 8px 24px rgba(207, 141, 96, 0.16)');
   });
 });
 
@@ -226,7 +354,7 @@ describe('Las cuentas de las pruebas de color', () => {
   });
 
   it('la distancia no separa un color de sí mismo y separa el rojo del verde solo con visión normal', () => {
-    expect(distancia('#c2185b', '#c2185b')).toBe(0);
+    expect(distancia('#5d3827', '#5d3827')).toBe(0);
     // Un rojo y un verde de la misma claridad: con deuteranopía casi se confunden.
     expect(distancia('#d62728', '#2ca02c')).toBeGreaterThan(30);
     expect(distancia('#d62728', '#2ca02c', 'deuteranopia')).toBeLessThan(distancia('#d62728', '#2ca02c') / 2);

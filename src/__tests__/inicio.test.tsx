@@ -172,8 +172,8 @@ describe('Inicio', () => {
     }
   });
 
-  it('la marca de cada disciplina lleva su color, no el rosa de las acciones', async () => {
-    // El hyrox, porque su marca no es ni el rosa ni su color de texto.
+  it('la marca de cada disciplina lleva su propio color', async () => {
+    // El hyrox, porque su marca no es ni el color de las acciones ni su color de texto.
     const nuevoId = generadorDeIds();
     const hoy = fechaLocal(new Date());
     await guardar(gimnasioConCalentamiento(nuevoId, hoy));

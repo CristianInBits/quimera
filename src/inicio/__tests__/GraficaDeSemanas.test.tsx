@@ -52,9 +52,10 @@ describe('La gráfica de las últimas semanas', () => {
     expect(estilo('semana-7')).toMatchObject({ width: 8, height: 8 });
   });
 
-  it('esta semana va en el rosa, la pasada un paso más suave y las demás en el más suave', async () => {
+  it('esta semana va en el color de las acciones, la pasada en un gris y las demás en un gris más suave', async () => {
     await render(<GraficaDeSemanas semanas={SEMANAS} />);
     expect(estilo('semana-7')).toMatchObject({ backgroundColor: paleta.grafica.esta });
+    expect(estilo('semana-7')).toMatchObject({ backgroundColor: paleta.primario });
     expect(estilo('semana-6')).toMatchObject({ backgroundColor: paleta.grafica.pasada });
     expect(estilo('semana-5')).toMatchObject({ backgroundColor: paleta.grafica.anteriores });
   });
@@ -114,6 +115,8 @@ describe('La gráfica de las últimas semanas', () => {
     try {
       await render(<GraficaDeSemanas semanas={SEMANAS} />);
       expect(estilo('semana-7')).toMatchObject({ backgroundColor: PALETAS.oscuro.grafica.esta });
+      expect(estilo('semana-7')).toMatchObject({ backgroundColor: PALETAS.oscuro.primario });
+      expect(estilo('semana-6')).toMatchObject({ backgroundColor: PALETAS.oscuro.grafica.pasada });
       expect(estilo('semana-0')).toMatchObject({ backgroundColor: PALETAS.oscuro.grafica.anteriores });
     } finally {
       jest.mocked(useColorScheme).mockReturnValue('light');

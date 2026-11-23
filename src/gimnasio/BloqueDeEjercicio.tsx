@@ -173,7 +173,7 @@ export function BloqueDeEjercicio({
         // En una superserie, el nombre es largo: la insignia y los botones van encima, y el nombre debajo, entero.
         <View testID="encabezado">
           <View testID="cabecera" style={[estilos.cabecera, estilos.cabeceraDeSuperserie]}>
-            <Text style={[estilos.insignia, { backgroundColor: paleta.insignia, color: paleta.primarioTexto }]}>
+            <Text style={[estilos.insignia, { backgroundColor: paleta.insignia, color: paleta.texto }]}>
               SUPERSERIE
             </Text>
             <View testID="botones-de-la-cabecera" style={estilos.botonesDeLaCabecera}>
@@ -204,7 +204,7 @@ export function BloqueDeEjercicio({
               const ejercicio = ejercicios[c];
               const resumen = resumenDeSerie(serie);
               return (
-                // La serie abierta y su panel van juntos, en el rosa suave y con el borde rosa.
+                // La serie abierta y su panel van juntos, en el fondo suave de lo elegido y con el borde del color de las acciones.
                 <View
                   key={serie.id}
                   testID={abierta ? 'serie-abierta' : undefined}
@@ -221,7 +221,7 @@ export function BloqueDeEjercicio({
                       style={[
                         datos,
                         estilos.numero,
-                        { width: espacio[6] * fontScale, color: abierta ? paleta.primarioTexto : paleta.textoTenue },
+                        { width: espacio[6] * fontScale, color: abierta ? paleta.texto : paleta.textoTenue },
                         abierta && estilos.numeroAbierto,
                       ]}
                     >
@@ -250,7 +250,7 @@ export function BloqueDeEjercicio({
                         hueco del mismo ancho, para que los resúmenes queden en columna. */}
                     {abierta ? (
                       <View testID="marca-abierta" style={[estilos.marca, marca]}>
-                        <Icono nombre="plegar" color={paleta.primario} tamano={22} />
+                        <Icono nombre="plegar" color={paleta.texto} tamano={22} />
                       </View>
                     ) : serie.hecha !== null ? (
                       <View testID="marca-de-hecha" style={[estilos.marca, marca, { backgroundColor: paleta.primario }]}>

@@ -62,14 +62,14 @@ describe('La tarjeta del esfuerzo', () => {
     }
   });
 
-  it('elegida, la cifra va en grande y en rosa, con la palabra de su tramo al lado', async () => {
+  it('elegida, la cifra va en grande y en el color del texto, con la palabra de su tramo al lado', async () => {
     await render(tarjeta(7));
     expect(estilo(within(screen.getByTestId('esfuerzo-elegido')).getByText('7'))).toMatchObject({
       fontSize: 68,
       fontWeight: '700',
       letterSpacing: -1,
       fontVariant: ['tabular-nums'],
-      color: PALETAS.claro.primario,
+      color: PALETAS.claro.texto,
     });
     // Con los tamaños de letra de accesibilidad del iPhone, la palabra crece como mucho al 300 %.
     expect(within(screen.getByTestId('esfuerzo-elegido')).getByText('duro').props.maxFontSizeMultiplier).toBe(3);
@@ -135,8 +135,11 @@ describe('La tarjeta del esfuerzo', () => {
     beforeEach(() => jest.mocked(useColorScheme).mockReturnValue(modo === 'oscuro' ? 'dark' : 'light'));
     afterEach(() => jest.mocked(useColorScheme).mockReturnValue('light'));
 
-    it('la tarjeta va teñida del gimnasio, y la cifra elegida, rellena de rosa; las demás, sobre la superficie', async () => {
+    it('la tarjeta va teñida del gimnasio, la cifra grande y su palabra en el color del texto, y la elegida de la rejilla, rellena del color de las acciones; las demás, sobre la superficie', async () => {
       await render(tarjeta(7));
+      // La cifra grande, en el color del texto del modo: la del claro no se vería sobre el tinte oscuro.
+      expect(estilo(within(screen.getByTestId('esfuerzo-elegido')).getByText('7'))).toMatchObject({ color: paleta.texto });
+      expect(estilo(within(screen.getByTestId('esfuerzo-elegido')).getByText('duro'))).toMatchObject({ color: paleta.texto });
       const elegida = screen.getByRole('radio', { name: '7, duro' });
       expect(estilo(elegida)).toMatchObject({ backgroundColor: paleta.primario, borderColor: paleta.primario });
       expect(estilo(within(elegida).getByText('7'))).toMatchObject({ color: paleta.sobrePrimario, fontSize: 18 });

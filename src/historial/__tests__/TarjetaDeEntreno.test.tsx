@@ -198,7 +198,7 @@ describe('Un entreno en el historial', () => {
     it(`${modo === 'claro' ? 'lleva una sombra muy leve' : 'no lleva sombra: la separa su borde'}`, async () => {
       await render(tarjeta(DE_AYER));
       expect(estilo(screen.getByTestId('entreno')).boxShadow).toBe(
-        modo === 'claro' ? '0 1px 2px rgba(35, 25, 31, 0.06)' : undefined,
+        modo === 'claro' ? '0 1px 2px rgba(31, 28, 26, 0.06)' : undefined,
       );
     });
 

@@ -71,7 +71,7 @@ describe('La ficha de una disciplina, en oscuro', () => {
     expect(icono('hyrox').props.tintColor).toBe(paleta.sobreMarca);
   });
 
-  it('sobre el rosa del gimnasio, el icono va en la tinta de encima del rosa', async () => {
+  it('sobre la marca del gimnasio, que es el color de las acciones, el icono va en la tinta de encima de las acciones', async () => {
     await render(<FichaDeDisciplina disciplina="gimnasio" minutos={53} />);
     expect(icono('gimnasio').props.tintColor).toBe(paleta.sobrePrimario);
   });

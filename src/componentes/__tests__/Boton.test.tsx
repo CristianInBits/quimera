@@ -35,7 +35,7 @@ describe('Un botón', () => {
     expect(caja('Guardar').boxShadow).toBeUndefined();
   });
 
-  it('el principal lleva la sombra de su rosa, y los demás no, ni siquiera el relleno', async () => {
+  it('el principal lleva la sombra de su color, y los demás no, ni siquiera el relleno', async () => {
     await render(
       <>
         <Boton titulo="Guardar" variante="principal" alPulsar={() => {}} />
@@ -74,7 +74,7 @@ describe('Un botón', () => {
     const texto = screen.getByText('Apuntar un entreno');
     expect(boton.children.indexOf(icono)).toBeGreaterThanOrEqual(0);
     expect(boton.children.indexOf(icono)).toBeLessThan(boton.children.indexOf(texto));
-    // Sobre el rosa del principal, el icono va en el color de encima del rosa, como el texto.
+    // Sobre el color del principal, el icono va en el color de encima, como el texto.
     expect(icono.props.tintColor).toBe(PALETAS.claro.sobrePrimario);
     expect(icono).not.toBeVisible();
     expect(texto).toBeVisible();
@@ -103,10 +103,10 @@ describe('Un botón', () => {
     expect(letra('Serie')).toMatchObject({ textAlign: 'center', fontWeight: '700' });
   });
 
-  it('el de contorno lleva el icono en rosa y el texto en el color del texto; con otro color, lo lleva todo', async () => {
+  it('el de contorno lleva el icono y el texto en el color del texto; con otro color, lo lleva todo', async () => {
     await render(<Boton titulo="Igual que la anterior" icono="repetir" variante="contorno" alPulsar={() => {}} />);
     const icono = () => screen.getByTestId('icono-repetir', { includeHiddenElements: true });
-    expect(icono().props.tintColor).toBe(PALETAS.claro.primario);
+    expect(icono().props.tintColor).toBe(PALETAS.claro.texto);
     expect(letra('Igual que la anterior')).toMatchObject({ color: PALETAS.claro.texto });
     // Su icono mide 18, como en la maqueta.
     expect(ladoDelIcono('repetir')).toBe(18 * Dimensions.get('window').fontScale);
@@ -131,28 +131,26 @@ describe.each(['claro', 'oscuro'] as const)('Las clases de botón en modo %s', (
   beforeEach(() => jest.mocked(useColorScheme).mockReturnValue(modo === 'oscuro' ? 'dark' : 'light'));
   afterEach(() => jest.mocked(useColorScheme).mockReturnValue('light'));
 
+  // Solo el principal y el relleno llevan el color de las acciones, y el de error, el suyo: los
+  // demás van en neutros. El icono va en el color del texto de su clase, y la sombra, solo en el principal.
   it.each([
     ['principal', paleta.primario, paleta.primario, paleta.sobrePrimario],
     ['relleno', paleta.primario, paleta.primario, paleta.sobrePrimario],
-    ['secundario', 'transparent', paleta.primario, paleta.primario],
-    ['tonal', paleta.tintePrimario, paleta.tintePrimario, paleta.primarioTexto],
+    ['secundario', 'transparent', paleta.bordeControl, paleta.texto],
+    ['tonal', paleta.superficieSuave, paleta.superficieSuave, paleta.texto],
     ['contorno', paleta.superficie, paleta.bordeControl, paleta.texto],
-    ['enlace', 'transparent', 'transparent', paleta.primario],
-    ['enlaceLargo', 'transparent', 'transparent', paleta.primario],
+    ['enlace', 'transparent', 'transparent', paleta.texto],
+    ['enlaceLargo', 'transparent', 'transparent', paleta.texto],
     ['sutil', 'transparent', 'transparent', paleta.textoTenue],
     ['error', 'transparent', 'transparent', paleta.error],
-  ] as const)('%s: fondo, borde de 2 y texto de su clase, y nunca menos de 48', async (variante, fondo, borde, tinta) => {
-    await render(<Boton titulo="Probar" variante={variante as VarianteDeBoton} alPulsar={() => {}} />);
+  ] as const)('%s: fondo, borde de 2, texto e icono de su clase, su sombra, y nunca menos de 48', async (variante, fondo, borde, tinta) => {
+    await render(<Boton titulo="Probar" icono="mas" variante={variante as VarianteDeBoton} alPulsar={() => {}} />);
     const estilo = caja('Probar');
     expect(estilo).toMatchObject({ backgroundColor: fondo, borderColor: borde, borderWidth: 2 });
+    expect(estilo.boxShadow).toBe(variante === 'principal' ? sombraDelBotonPrincipal(paleta) : undefined);
     expect(estilo.minHeight).toBeGreaterThanOrEqual(48);
     expect(estilo.minWidth).toBeGreaterThanOrEqual(48);
     expect(letra('Probar')).toMatchObject({ color: tinta });
-  });
-
-  it('el icono del contorno va en el rosa del modo, aunque el texto vaya en el color del texto', async () => {
-    await render(<Boton titulo="Igual que la anterior" icono="repetir" variante="contorno" alPulsar={() => {}} />);
-    expect(screen.getByTestId('icono-repetir', { includeHiddenElements: true }).props.tintColor).toBe(paleta.primario);
-    expect(letra('Igual que la anterior')).toMatchObject({ color: paleta.texto });
+    expect(screen.getByTestId('icono-mas', { includeHiddenElements: true }).props.tintColor).toBe(tinta);
   });
 });

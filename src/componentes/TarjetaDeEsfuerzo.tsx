@@ -48,7 +48,7 @@ export function TarjetaDeEsfuerzo({
             <Text style={[estilos.pista, { color: paleta.textoTenue }]}>Elige cuánto te ha costado</Text>
           ) : (
             <View testID="esfuerzo-elegido" style={estilos.eleccion}>
-              <Text style={[datos, estilos.cifra, { color: paleta.primario }]}>{valor}</Text>
+              <Text style={[datos, estilos.cifra, { color: paleta.texto }]}>{valor}</Text>
               {/* Con los tamaños de letra de accesibilidad del iPhone, «moderado» se partiría por dentro. */}
               <Text maxFontSizeMultiplier={3} style={[estilos.palabra, { color: paleta.texto }]}>
                 {palabraDelEsfuerzo(valor)}

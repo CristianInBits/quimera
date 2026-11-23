@@ -8,20 +8,20 @@ import { espacio, radio } from '@/tema/medidas';
 const PICO = 14;
 
 /**
- * Lo que dice la mascota: un bocadillo en el rosa suave, con un pico arriba
- * que apunta hacia ella. Sin «pico», el pico va en el centro; con él, a esa
- * distancia del borde derecho, para que quede debajo de una mascota que va a
- * la derecha.
+ * Lo que dice la mascota: un bocadillo en el fondo suave de las filas, con un
+ * pico arriba que apunta hacia ella. Sin «pico», el pico va en el centro; con
+ * él, a esa distancia del borde derecho, para que quede debajo de una mascota
+ * que va a la derecha.
  */
 export function Bocadillo({ children, pico }: { children: ReactNode; pico?: number }) {
   const paleta = usePaleta();
   return (
-    <View testID="bocadillo" style={[estilos.bocadillo, { backgroundColor: paleta.tintePrimario }]}>
+    <View testID="bocadillo" style={[estilos.bocadillo, { backgroundColor: paleta.superficieSuave }]}>
       <View
         testID="pico"
         style={[
           estilos.pico,
-          { backgroundColor: paleta.tintePrimario },
+          { backgroundColor: paleta.superficieSuave },
           pico === undefined ? { left: '50%', marginLeft: -PICO / 2 } : { right: pico - PICO / 2 },
         ]}
       />

@@ -300,9 +300,9 @@ describe('Un bloque de un entreno guardado', () => {
       expect(screen.getByTestId('bloque')).toHaveStyle({ backgroundColor: paleta.superficie, borderColor: paleta.bordeSuave });
     });
 
-    it('la insignia de la superserie va en el rosa sobre su fondo, y el nombre de cada ejercicio, en el tenue', async () => {
+    it('la insignia de la superserie va en el color del texto sobre su fondo, y el nombre de cada ejercicio, en el tenue', async () => {
       await render(bloque(SUPERSERIE));
-      expect(screen.getByText('SUPERSERIE')).toHaveStyle({ backgroundColor: paleta.insignia, color: paleta.primarioTexto });
+      expect(screen.getByText('SUPERSERIE')).toHaveStyle({ backgroundColor: paleta.insignia, color: paleta.texto });
       expect((screen.getAllByTestId('serie')[0].children as Elemento[])[1]).toHaveStyle({ color: paleta.textoTenue });
     });
   });

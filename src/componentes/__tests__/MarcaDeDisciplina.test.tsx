@@ -67,7 +67,7 @@ describe('La marca de una disciplina', () => {
     beforeEach(() => jest.mocked(useColorScheme).mockReturnValue(modo === 'oscuro' ? 'dark' : 'light'));
     afterEach(() => jest.mocked(useColorScheme).mockReturnValue('light'));
 
-    it('va en el color de su disciplina; sobre el rosa del gimnasio, el icono va en la tinta de encima del rosa', async () => {
+    it('va en el color de su disciplina; sobre el del gimnasio, que es el de las acciones, el icono va en la tinta de encima de las acciones', async () => {
       await render(
         <>
           <MarcaDeDisciplina disciplina="gimnasio" />

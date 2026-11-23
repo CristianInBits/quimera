@@ -87,7 +87,7 @@ export function BloqueGuardado({
   return (
     <Tarjeta testID="bloque" style={estilos.bloque}>
       {superserie && (
-        <Text style={[estilos.insignia, { backgroundColor: paleta.insignia, color: paleta.primarioTexto }]}>SUPERSERIE</Text>
+        <Text style={[estilos.insignia, { backgroundColor: paleta.insignia, color: paleta.texto }]}>SUPERSERIE</Text>
       )}
       <View testID="nombre-y-notas">
         <Text accessibilityRole="header" style={[estilos.titulo, { color: paleta.texto }]}>

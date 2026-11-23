@@ -77,7 +77,7 @@ describe('Apuntar', () => {
   });
   afterAll(() => mockBase.cerrar());
 
-  it('el gimnasio va en una tarjeta ancha teñida, con el borde rosa, su halo, su rinoceronte y la flecha', async () => {
+  it('el gimnasio va en una tarjeta ancha teñida, con el borde de su color, su halo, su rinoceronte y la flecha', async () => {
     await renderRouter(RUTAS, { initialUrl: '/apuntar' });
     const gimnasio = await screen.findByRole('button', { name: 'Gimnasio' });
     expect(estilo('Gimnasio')).toMatchObject({
@@ -135,20 +135,31 @@ describe('Apuntar', () => {
     expect(estilo('Hyrox, pronto')).toMatchObject({ flexBasis: '100%' });
   });
 
-  it('en oscuro, cada tarjeta lleva su tinte y su borde oscuros, el gimnasio sin halo y «Pronto» sobre el fondo oscuro', async () => {
+  it('en oscuro, cada tarjeta lleva su tinte y su borde oscuros, el gimnasio con su punto y su flecha y sin halo, y «Pronto» sobre el fondo oscuro', async () => {
     jest.mocked(useColorScheme).mockReturnValue('dark');
     try {
       await renderRouter(RUTAS, { initialUrl: '/apuntar' });
-      await screen.findByRole('button', { name: 'Gimnasio' });
-      expect(estilo('Gimnasio')).toMatchObject({ backgroundColor: PALETAS.oscuro.disciplina.gimnasio.tinte });
-      expect(estilo('Gimnasio').boxShadow).toBeUndefined();
-      const hyrox = screen.getByRole('button', { name: 'Hyrox, pronto' });
-      expect(estilo('Hyrox, pronto')).toMatchObject({ borderColor: PALETAS.oscuro.disciplina.hyrox.borde, borderWidth: 1 });
-      expect(within(hyrox).getByTestId('punto')).toHaveStyle({ backgroundColor: PALETAS.oscuro.disciplina.hyrox.marca });
-      expect(within(hyrox).getByText('Pronto')).toHaveStyle({
-        backgroundColor: PALETAS.oscuro.pastilla,
-        color: PALETAS.oscuro.textoTenue,
+      const gimnasio = await screen.findByRole('button', { name: 'Gimnasio' });
+      expect(estilo('Gimnasio')).toMatchObject({
+        backgroundColor: PALETAS.oscuro.disciplina.gimnasio.tinte,
+        borderColor: PALETAS.oscuro.disciplina.gimnasio.marca,
       });
+      expect(estilo('Gimnasio').boxShadow).toBeUndefined();
+      expect(within(gimnasio).getByTestId('icono-siguiente', ocultos).props.tintColor).toBe(PALETAS.oscuro.primario);
+      expect(within(gimnasio).getByTestId('punto')).toHaveStyle({ backgroundColor: PALETAS.oscuro.disciplina.gimnasio.marca });
+      for (const [nombre, disciplina] of DEMAS) {
+        const boton = screen.getByRole('button', { name: `${nombre}, pronto` });
+        expect(estilo(`${nombre}, pronto`)).toMatchObject({
+          backgroundColor: PALETAS.oscuro.disciplina[disciplina].tinte,
+          borderColor: PALETAS.oscuro.disciplina[disciplina].borde,
+          borderWidth: 1,
+        });
+        expect(within(boton).getByTestId('punto')).toHaveStyle({ backgroundColor: PALETAS.oscuro.disciplina[disciplina].marca });
+        expect(within(boton).getByText('Pronto')).toHaveStyle({
+          backgroundColor: PALETAS.oscuro.pastilla,
+          color: PALETAS.oscuro.textoTenue,
+        });
+      }
     } finally {
       jest.mocked(useColorScheme).mockReturnValue('light');
     }

@@ -28,8 +28,8 @@ export function ladoDeLaMarca(tamano: TamanoDeMarca): number {
  * El cuadrado del color de una disciplina, con su icono: va junto a su nombre,
  * en las fichas de Inicio, en cada entreno del historial y en la cabecera del
  * editor. No tiene un lado fijo: crece con su icono, que crece con la letra
- * del sistema. Encima del rosa del gimnasio, el icono va en la tinta de
- * encima del rosa, como en la maqueta.
+ * del sistema. Encima del café del gimnasio, que es el color de las acciones,
+ * el icono va en la tinta de encima de ese color.
  */
 export function MarcaDeDisciplina({
   disciplina,

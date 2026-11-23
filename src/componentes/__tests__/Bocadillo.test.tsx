@@ -7,15 +7,15 @@ import { PALETAS } from '@/tema/colores';
 const pico = () => StyleSheet.flatten(screen.getByTestId('pico', { includeHiddenElements: true }).props.style);
 
 describe('Un bocadillo', () => {
-  it('lleva lo que dice, en el rosa suave, con el pico arriba del mismo color', async () => {
+  it('lleva lo que dice, en el fondo suave de las filas, con el pico arriba del mismo color', async () => {
     await render(
       <Bocadillo>
         <Text>Hola</Text>
       </Bocadillo>,
     );
     expect(screen.getByTestId('bocadillo')).toContainElement(screen.getByText('Hola'));
-    expect(screen.getByTestId('bocadillo')).toHaveStyle({ backgroundColor: PALETAS.claro.tintePrimario });
-    expect(pico()).toMatchObject({ backgroundColor: PALETAS.claro.tintePrimario, top: -7 });
+    expect(screen.getByTestId('bocadillo')).toHaveStyle({ backgroundColor: PALETAS.claro.superficieSuave });
+    expect(pico()).toMatchObject({ backgroundColor: PALETAS.claro.superficieSuave, top: -7 });
   });
 
   it('sin más, el pico va en el centro', async () => {
@@ -29,12 +29,12 @@ describe('Un bocadillo', () => {
     expect(pico().left).toBeUndefined();
   });
 
-  it('en oscuro, va en el rosa suave del modo oscuro', async () => {
+  it('en oscuro, va en el fondo suave de las filas del modo oscuro', async () => {
     jest.mocked(useColorScheme).mockReturnValue('dark');
     try {
       await render(<Bocadillo>{null}</Bocadillo>);
-      expect(screen.getByTestId('bocadillo')).toHaveStyle({ backgroundColor: PALETAS.oscuro.tintePrimario });
-      expect(pico()).toMatchObject({ backgroundColor: PALETAS.oscuro.tintePrimario });
+      expect(screen.getByTestId('bocadillo')).toHaveStyle({ backgroundColor: PALETAS.oscuro.superficieSuave });
+      expect(pico()).toMatchObject({ backgroundColor: PALETAS.oscuro.superficieSuave });
     } finally {
       jest.mocked(useColorScheme).mockReturnValue('light');
     }

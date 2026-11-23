@@ -80,7 +80,7 @@ describe('Un campo con pasos', () => {
     beforeEach(() => jest.mocked(useColorScheme).mockReturnValue(modo === 'oscuro' ? 'dark' : 'light'));
     afterEach(() => jest.mocked(useColorScheme).mockReturnValue('light'));
 
-    it('el menos y el más son redondos, de 48, en el rosa suave y con el borde rosa, y su icono en rosa', async () => {
+    it('el menos y el más son redondos, de 48, como el campo: en su fondo, con el borde de los controles y el icono en el color del texto', async () => {
       await render(campo());
       for (const [accion, icono] of [
         ['Bajar', 'icono-menos'],
@@ -92,10 +92,10 @@ describe('Un campo con pasos', () => {
           height: 48,
           borderRadius: 24,
           borderWidth: 2,
-          backgroundColor: paleta.tintePrimario,
-          borderColor: paleta.primario,
+          backgroundColor: paleta.campo,
+          borderColor: paleta.bordeControl,
         });
-        expect(within(boton).getByTestId(icono, ocultos).props.tintColor).toBe(paleta.primario);
+        expect(within(boton).getByTestId(icono, ocultos).props.tintColor).toBe(paleta.texto);
       }
     });
 

@@ -28,10 +28,11 @@ const anchoDeCifra = (carga: number, fontScale: number) => cifra(carga).length *
 
 /**
  * La carga de las últimas semanas en barras, de la más antigua a esta. Esta
- * semana va en el rosa y con su cifra; la pasada, un paso más suave y también
- * con su cifra, la de la frase de la comparación; las demás, en el rosa más
- * suave y sin cifra: lo que cuentan es la tendencia. Una semana sin entrenos
- * se dibuja como un punto con su «0», para que no parezca un dato que falta.
+ * semana va en el color de las acciones y con su cifra; la pasada, en un gris
+ * y también con su cifra, la de la frase de la comparación; las demás, en un
+ * gris más suave y sin cifra: lo que cuentan es la tendencia. Una semana sin
+ * entrenos se dibuja como un punto con su «0», para que no parezca un dato que
+ * falta.
  *
  * Para el lector de pantalla es una sola imagen que dice todas las cifras.
  * Si las cifras no caben encima de sus barras, o los nombres debajo, como con

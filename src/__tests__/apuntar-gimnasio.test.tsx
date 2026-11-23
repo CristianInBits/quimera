@@ -600,7 +600,7 @@ describe('Apuntar un entreno de gimnasio', () => {
     await waitFor(() => expect(app.getPathname()).toBe('/apuntar/gimnasio'));
   });
 
-  it('la serie abierta se distingue de las demás: va en el rosa suave y con el borde rosa', async () => {
+  it('la serie abierta se distingue de las demás: va en el fondo de lo elegido y con el borde del color de las acciones', async () => {
     await abrirElEditor();
     await anadir(null, 'Press banca');
     expect(await screen.findByTestId('serie-abierta')).toHaveStyle({

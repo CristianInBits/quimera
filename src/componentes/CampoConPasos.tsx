@@ -83,7 +83,11 @@ export function letraQueCabe(valor: string, caja: number | null, fontScale: numb
   return Math.max(LETRA_MINIMA, Math.min(LETRA, sitio / (cifras * ANCHO_DE_CIFRA * fontScale)));
 }
 
-/** Un botón redondo de menos o de más, en el rosa suave y con el borde rosa. */
+/**
+ * Un botón redondo de menos o de más, sobre el fondo de los campos y con el
+ * borde de los controles, como el campo de al lado: el color de las acciones
+ * queda para la acción de la pantalla.
+ */
 function Paso({ sentido, etiqueta, alPulsar }: { sentido: 1 | -1; etiqueta: string; alPulsar: () => void }) {
   const paleta = usePaleta();
   const { fontScale } = useWindowDimensions();
@@ -99,13 +103,13 @@ function Paso({ sentido, etiqueta, alPulsar }: { sentido: 1 | -1; etiqueta: stri
           width: lado,
           height: lado,
           borderRadius: lado / 2,
-          backgroundColor: paleta.tintePrimario,
-          borderColor: paleta.primario,
+          backgroundColor: paleta.campo,
+          borderColor: paleta.bordeControl,
         },
         pressed && estilos.pulsado,
       ]}
     >
-      <Icono nombre={sentido === 1 ? 'mas' : 'menos'} color={paleta.primario} tamano={ICONO_DEL_PASO} />
+      <Icono nombre={sentido === 1 ? 'mas' : 'menos'} color={paleta.texto} tamano={ICONO_DEL_PASO} />
     </Pressable>
   );
 }

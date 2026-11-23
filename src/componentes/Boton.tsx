@@ -6,13 +6,16 @@ import { espacio, radio, toqueMinimo } from '@/tema/medidas';
 
 /**
  * Las clases de botón, de más a menos peso:
- * - principal: relleno de rosa. La acción de la pantalla, como Guardar.
- * - relleno: relleno de rosa, más bajo y sin sombra. Una acción que se repite
- *   dentro de una tarjeta, como Hecha.
- * - secundario: con borde rosa. Otra acción que importa, como Añadir ejercicio.
- * - tonal: el rosa suave de fondo. Ajustes que no pesan, como Cambiar el día.
- * - contorno: con el borde de los controles. Rellena algo, como Igual que la anterior.
- * - enlace: solo el texto en rosa. Añade algo pequeño, como una serie.
+ * - principal: relleno del color de las acciones. La acción de la pantalla,
+ *   como Guardar.
+ * - relleno: como el principal, más bajo y sin sombra. Una acción que se
+ *   repite dentro de una tarjeta, como Hecha.
+ * - secundario: con el borde de los controles. Otra acción que importa, como
+ *   Añadir ejercicio.
+ * - tonal: el fondo suave de las filas. Ajustes que no pesan, como Cambiar el día.
+ * - contorno: con el borde de los controles, sobre la superficie. Rellena
+ *   algo, como Igual que la anterior.
+ * - enlace: solo el texto, en negrita. Añade algo pequeño, como una serie.
  * - enlaceLargo: como el enlace, pero con el texto al principio de la línea y
  *   algo menos de peso, porque ocupa varias líneas, como Enlazar en superserie
  *   con dos ejercicios de nombre largo.
@@ -64,25 +67,29 @@ const MEDIDAS: Record<VarianteDeBoton, Medidas> = {
   error: { alto: toqueMinimo, radio: radio.control, letra: 16, peso: '600', relleno: espacio[4], icono: 20, hueco: espacio[2] },
 };
 
-/** El fondo, el borde y el color del texto de una clase, y el del icono si no es el del texto. */
-type ColoresDeBoton = { fondo: string; borde: string; tinta: string; icono?: string };
+/** El fondo, el borde y el color del texto y del icono de una clase. */
+type ColoresDeBoton = { fondo: string; borde: string; tinta: string };
 
-/** Los colores de cada clase, con la paleta del modo claro u oscuro. */
+/**
+ * Los colores de cada clase, con la paleta del modo claro u oscuro. Solo el
+ * principal y el relleno llevan el color de las acciones, y el de error, el
+ * suyo; los demás van en neutros, para que el color diga cuál es la acción de
+ * la pantalla.
+ */
 function colores(variante: VarianteDeBoton, paleta: Paleta): ColoresDeBoton {
   switch (variante) {
     case 'principal':
     case 'relleno':
       return { fondo: paleta.primario, borde: paleta.primario, tinta: paleta.sobrePrimario };
     case 'secundario':
-      return { fondo: 'transparent', borde: paleta.primario, tinta: paleta.primario };
+      return { fondo: 'transparent', borde: paleta.bordeControl, tinta: paleta.texto };
     case 'tonal':
-      return { fondo: paleta.tintePrimario, borde: paleta.tintePrimario, tinta: paleta.primarioTexto };
+      return { fondo: paleta.superficieSuave, borde: paleta.superficieSuave, tinta: paleta.texto };
     case 'contorno':
-      // El icono va en rosa: dice qué hace el botón sin cargar el texto.
-      return { fondo: paleta.superficie, borde: paleta.bordeControl, tinta: paleta.texto, icono: paleta.primario };
+      return { fondo: paleta.superficie, borde: paleta.bordeControl, tinta: paleta.texto };
     case 'enlace':
     case 'enlaceLargo':
-      return { fondo: 'transparent', borde: 'transparent', tinta: paleta.primario };
+      return { fondo: 'transparent', borde: 'transparent', tinta: paleta.texto };
     case 'sutil':
       return { fondo: 'transparent', borde: 'transparent', tinta: paleta.textoTenue };
     case 'error':
@@ -119,12 +126,10 @@ export function Boton({
 }) {
   const paleta = usePaleta();
   const medidas = MEDIDAS[variante];
-  const { fondo, borde, tinta, icono: tintaDelIcono = tinta } = colores(variante, paleta);
+  const { fondo, borde, tinta } = colores(variante, paleta);
   const conBorde = variante === 'secundario' || variante === 'contorno';
   const colorDeTinta = color ?? tinta;
-  const dibujo = icono !== undefined && (
-    <Icono nombre={icono} color={color ?? tintaDelIcono} tamano={medidas.icono} />
-  );
+  const dibujo = icono !== undefined && <Icono nombre={icono} color={colorDeTinta} tamano={medidas.icono} />;
   return (
     <Pressable
       accessibilityRole="button"
@@ -141,7 +146,7 @@ export function Boton({
           gap: medidas.hueco,
           backgroundColor: fondo,
           borderColor: conBorde && color !== undefined ? color : borde,
-          // El principal se levanta del fondo con una sombra de su rosa.
+          // El principal se levanta del fondo con una sombra de su color.
           boxShadow: variante === 'principal' && !deshabilitado ? sombraDelBotonPrincipal(paleta) : undefined,
         },
         medidas.alInicio && estilos.alInicio,

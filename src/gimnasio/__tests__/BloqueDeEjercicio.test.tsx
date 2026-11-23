@@ -151,7 +151,7 @@ describe('Un ejercicio en el editor', () => {
     });
   });
 
-  it('una serie hecha acaba en un círculo rosa con la marca, y una sin hacer, en un hueco del mismo ancho', async () => {
+  it('una serie hecha acaba en un círculo del color de las acciones con la marca, y una sin hacer, en un hueco del mismo ancho', async () => {
     await render(bloque());
     const hecha = alFinal('Serie 1: 60 kg × 10, hecha');
     expect(hecha.props.testID).toBe('marca-de-hecha');
@@ -163,7 +163,7 @@ describe('Un ejercicio en el editor', () => {
     expect(within(fila('Serie 4: Sin apuntar')).queryByTestId('icono-plegar', ocultos)).toBeNull();
   });
 
-  it('la serie abierta va en el rosa suave con el borde rosa, su número en el rosa del texto y acaba en la flecha de plegar', async () => {
+  it('la serie abierta va en el fondo de lo elegido con el borde del color de las acciones, su número en el color del texto y acaba en la flecha de plegar', async () => {
     const alElegir = jest.fn();
     await render(bloque({ elegida: 's3', alElegir }));
     expect(screen.getByTestId('serie-abierta')).toHaveStyle({
@@ -176,8 +176,8 @@ describe('Un ejercicio en el editor', () => {
     expect(abierta).toBeExpanded();
     const flecha = alFinal('Serie 3: 75 kg × 6');
     expect(flecha.props.testID).toBe('marca-abierta');
-    expect(within(flecha).getByTestId('icono-plegar', ocultos).props.tintColor).toBe(PALETAS.claro.primario);
-    expect(estilo(within(abierta).getByText('3'))).toMatchObject({ color: PALETAS.claro.primarioTexto, fontWeight: '700' });
+    expect(within(flecha).getByTestId('icono-plegar', ocultos).props.tintColor).toBe(PALETAS.claro.texto);
+    expect(estilo(within(abierta).getByText('3'))).toMatchObject({ color: PALETAS.claro.texto, fontWeight: '700' });
     expect(estilo(within(fila('Serie 1: 60 kg × 10, hecha')).getByText('1'))).toMatchObject({
       color: PALETAS.claro.textoTenue,
       fontWeight: '600',
@@ -250,7 +250,7 @@ describe('Un ejercicio en el editor', () => {
     expect(within(fila('Serie 1: 60 kg × 10, hecha')).queryByTestId('marca-de-hecha')).toBeNull();
 
     const quitarLaMarca = screen.getByRole('button', { name: `Hecha a las ${horaDeInstante(T0)}: quitar la marca` });
-    expect(estilo(quitarLaMarca)).toMatchObject({ backgroundColor: 'transparent', borderColor: PALETAS.claro.primario });
+    expect(estilo(quitarLaMarca)).toMatchObject({ backgroundColor: 'transparent', borderColor: PALETAS.claro.bordeControl });
     // El texto es largo: el botón ocupa su línea y Quitar esta serie baja a la siguiente.
     expect(screen.getByTestId('hecha')).toHaveStyle({ flexBasis: '100%' });
     // Aquí la marca va delante: dice que está hecha antes de decir que se puede quitar.
@@ -293,7 +293,7 @@ describe('Un ejercicio en el editor', () => {
       name: 'Enlazar en superserie con Remo con mancuerna + Fondos en paralelas',
     });
     expect(estilo(enlazar)).toMatchObject({ justifyContent: 'flex-start' });
-    expect(within(enlazar).getByTestId('icono-enlazar', ocultos).props.tintColor).toBe(PALETAS.claro.primario);
+    expect(within(enlazar).getByTestId('icono-enlazar', ocultos).props.tintColor).toBe(PALETAS.claro.texto);
   });
 
   it('con la letra grande, el número y la marca de cada fila crecen con ella, y Hecha ocupa su línea', async () => {
@@ -317,7 +317,7 @@ describe('Una superserie en el editor', () => {
     await render(superserie());
     expect(estilo(screen.getByText('SUPERSERIE'))).toMatchObject({
       backgroundColor: PALETAS.claro.insignia,
-      color: PALETAS.claro.primarioTexto,
+      color: PALETAS.claro.texto,
       borderRadius: 999,
       fontSize: 12,
       fontWeight: '700',
@@ -402,11 +402,11 @@ describe.each(['claro', 'oscuro'] as const)('Los colores del editor en modo %s',
       borderColor: paleta.primario,
     });
     const abierta = 'Vuelta 2, Remo con mancuerna: 22 kg × 10, hecha';
-    expect(within(alFinal(abierta)).getByTestId('icono-plegar', ocultos).props.tintColor).toBe(paleta.primario);
-    expect(estilo(within(fila(abierta)).getByText('2'))).toMatchObject({ color: paleta.primarioTexto });
+    expect(within(alFinal(abierta)).getByTestId('icono-plegar', ocultos).props.tintColor).toBe(paleta.texto);
+    expect(estilo(within(fila(abierta)).getByText('2'))).toMatchObject({ color: paleta.texto });
     expect(estilo(screen.getByText('SUPERSERIE'))).toMatchObject({
       backgroundColor: paleta.insignia,
-      color: paleta.primarioTexto,
+      color: paleta.texto,
     });
   });
 });
