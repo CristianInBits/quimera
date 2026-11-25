@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { leerAjuste, ponerAjusteEn, type ValorDeAjuste } from './ajustes';
 import { p, type Lectura, type Transaccion } from './base';
 import { CATALOGO_VERSION } from './catalogo';
-import { esFecha } from './fechas';
+import { esFecha, fechaLocal, horaLocal } from './fechas';
 import { MIGRACIONES } from './migraciones';
 import { SELLO_MAXIMO, SELLO_MINIMO } from './sellos';
 
@@ -22,14 +22,24 @@ import { SELLO_MAXIMO, SELLO_MINIMO } from './sellos';
 //   sus series. Los nombres y las unidades enteras son los de la base:
 //   gramos, metros y milisegundos. Los bloques y las series llevan el sello y
 //   la marca de su entreno, como en la base, así que no los repiten.
+//   De un entreno borrado no viajan sus notas ni sus bloques (decidido el 25
+//   de noviembre de 2026): para juntar móviles bastan su identificador, su
+//   sello y su marca. Viajan también su disciplina, su fecha, su hora, su
+//   duración y su esfuerzo, porque el formato los pide. El formato no cambia:
+//   una copia con los borrados enteros, como copia-v1.json, se importa igual.
 // - Los ejercicios que creó la persona, también los borrados, con su marca.
-//   Los del catálogo van solo por su clave, que es la misma en todos los
-//   móviles.
+//   Los borrados viajan enteros, con su nombre, porque los entrenos que los
+//   usan los siguen nombrando, también en otros móviles. Los del catálogo van
+//   solo por su clave, que es la misma en todos los móviles.
 // - Los ajustes que viajan: los «local.*» son de cada móvil y no van.
 //
 // Importar junta entreno a entreno: gana la versión con el sello mayor, y un
-// entreno nunca queda mezcla de dos móviles. Nada se borra porque falte en la
-// copia, y todo va en una sola transacción.
+// entreno nunca queda mezcla de dos móviles. Un borrado que gana sobre un
+// entreno que el móvil tiene se aplica como un borrado hecho en el móvil:
+// cambian su sello y, si no estaba borrado, su marca, y lo que el móvil guarda
+// de él se queda, así que, si en el móvil se deshace su propio borrado, el
+// entreno vuelve entero.
+// Nada se borra porque falte en la copia, y todo va en una sola transacción.
 //
 // La persona dice de quién son los datos. Cada móvil estrena la suya la
 // primera vez que la necesita, al exportar o al importar, y no cambia nunca:
@@ -71,7 +81,8 @@ import { SELLO_MAXIMO, SELLO_MINIMO } from './sellos';
 // Cuando el formato suba de versión:
 // - Esta Quimera tiene que seguir leyendo las copias de la versión 1 que ya
 //   estén guardadas: los ficheros de las copias fijadas (copia-v1.json,
-//   copia-v1-de-la-app.json y copia-v1-sin-entrenos.json) no cambian nunca;
+//   copia-v1-de-la-app.json, copia-v1-sin-entrenos.json y
+//   copia-v1-con-borrados.json) no cambian nunca;
 //   sus pruebas solo añaden a las filas esperadas lo que pongan las
 //   migraciones nuevas.
 // - Una copia de una versión anterior nunca borra lo que no conoce: si una
@@ -90,14 +101,42 @@ const PERSONA = 'persona';
  * no viaja, y no se olvida.
  */
 const OTRAS_SUYAS = 'local.personas';
+/**
+ * Cuándo se hizo la última copia que se sabe guardada fuera de este móvil, en
+ * milisegundos. Es local, así que no viaja: cada móvil sabe de sus copias.
+ */
+const ULTIMA_COPIA = 'local.ultima_copia';
 /** Los entrenos que se escriben en cada sentencia al importar. */
 const TANDA = 100;
 
-/** El fichero no es una copia de Quimera, o está dañado. */
+/**
+ * El fichero no es una copia de Quimera («noEsCopia»), o lo es pero está
+ * dañada («danada»). El detalle dice dónde está el problema de una copia
+ * dañada, como «entrenos[3].fecha no es válido», para enseñarlo aparte.
+ */
 export class CopiaNoValida extends Error {
-  constructor(mensaje: string) {
-    super(mensaje);
+  readonly tipo: 'noEsCopia' | 'danada';
+  readonly detalle: string | undefined;
+  constructor(tipo: 'noEsCopia' | 'danada', detalle?: string) {
+    super(tipo === 'noEsCopia' ? 'El fichero no es una copia de Quimera.' : `La copia está dañada: ${detalle}.`);
     this.name = 'CopiaNoValida';
+    this.tipo = tipo;
+    this.detalle = tipo === 'danada' ? detalle : undefined;
+  }
+}
+
+/**
+ * Algo de este móvil no cabe en el formato de la copia: sus datos guardados,
+ * como unas notas que el formato no acepta, o la versión de la app que se le
+ * pasa. Sale al exportar, con el móvil delante, y no al restaurar. El detalle
+ * dice dónde, como «entrenos[3].notas no es válido».
+ */
+export class DatoQueNoCabe extends Error {
+  readonly detalle: string;
+  constructor(detalle: string) {
+    super(`No se pudo crear una copia válida: ${detalle}.`);
+    this.name = 'DatoQueNoCabe';
+    this.detalle = detalle;
   }
 }
 
@@ -332,9 +371,32 @@ export type Copia = z.infer<typeof esquemaDeCopia>;
 export type EntrenoDeCopia = Copia['entrenos'][number];
 export type EjercicioDeCopia = Copia['ejercicios'][number];
 
-/** El nombre del fichero de una copia hecha en esa fecha local, AAAA-MM-DD. */
-export function nombreDeLaCopia(fecha: string): string {
-  return `quimera-${fecha}.json`;
+/**
+ * El nombre del fichero de una copia hecha en ese instante, con la fecha y la
+ * hora locales: «quimera-2026-11-25-1830.json». Con la hora, dos copias del
+ * mismo día, como la del móvil y la de la tableta, no se llaman igual, salvo
+ * que se hagan en el mismo minuto.
+ */
+export function nombreDeLaCopia(instante: Date): string {
+  return `quimera-${fechaLocal(instante)}-${horaLocal(instante).replace(':', '')}.json`;
+}
+
+/** El primer instante de 2100: las fechas de Quimera acaban antes, en 2099. */
+const FIN_DE_LAS_FECHAS = Date.UTC(2100, 0, 1);
+
+/**
+ * Lo que se enseña de una copia antes de importarla, para reconocerla: cuándo
+ * se hizo y cuántos entrenos trae sin borrar. La hora no se da si es anterior
+ * a SELLO_MINIMO, que solo da un reloj atrasado, ni si es de 2100 o después,
+ * donde acaban las fechas de Quimera: solo la da una copia editada a mano, y
+ * desde el año 10000 ni siquiera se podría decir como fecha. Una hora futura
+ * anterior a 2100 se da tal cual.
+ */
+export function datosDeLaCopia(copia: Copia): { hecha: number | null; entrenos: number } {
+  return {
+    hecha: copia.exportado >= SELLO_MINIMO && copia.exportado < FIN_DE_LAS_FECHAS ? copia.exportado : null,
+    entrenos: copia.entrenos.filter((e) => e.borrado === 0).length,
+  };
 }
 
 /** Dónde está el primer problema de una copia, como «entrenos[3].fecha». */
@@ -349,8 +411,8 @@ function ruta(camino: readonly PropertyKey[]): string {
 function comprobar(datos: unknown): Copia {
   const leida = esquemaDeCopia.safeParse(datos);
   if (!leida.success) {
-    const [problema] = leida.error.issues;
-    throw new CopiaNoValida(`La copia está dañada: ${ruta(problema.path) || 'su cabecera'} no es válido.`);
+    const donde = ruta(leida.error.issues[0].path);
+    throw new CopiaNoValida('danada', donde === '' ? 'su cabecera no es válida' : `${donde} no es válido`);
   }
   comprobarRepetidos(leida.data);
   return leida.data;
@@ -361,7 +423,7 @@ function comprobarRepetidos(copia: Copia): void {
   const vistos = new Set<string>();
   const una = (id: string, que: string) => {
     if (vistos.has(id)) {
-      throw new CopiaNoValida(`La copia está dañada: ${que} ${id} sale dos veces.`);
+      throw new CopiaNoValida('danada', `${que} ${id} sale dos veces`);
     }
     vistos.add(id);
   };
@@ -375,7 +437,7 @@ function comprobarRepetidos(copia: Copia): void {
         una(serie.id, 'la serie');
         const sitio = `${serie.ronda}.${serie.orden}`;
         if (sitios.has(sitio)) {
-          throw new CopiaNoValida(`La copia está dañada: el bloque ${bloque.id} tiene dos series en el mismo sitio.`);
+          throw new CopiaNoValida('danada', `el bloque ${bloque.id} tiene dos series en el mismo sitio`);
         }
         sitios.add(sitio);
       }
@@ -384,7 +446,7 @@ function comprobarRepetidos(copia: Copia): void {
   const claves = new Set<string>();
   for (const ajuste of copia.ajustes) {
     if (claves.has(ajuste.clave)) {
-      throw new CopiaNoValida(`La copia está dañada: el ajuste ${ajuste.clave} sale dos veces.`);
+      throw new CopiaNoValida('danada', `el ajuste ${ajuste.clave} sale dos veces`);
     }
     claves.add(ajuste.clave);
   }
@@ -423,11 +485,13 @@ const comoMarca = (n: number): 0 | 1 => (n === 0 ? 0 : 1);
 
 /**
  * La copia de todos los datos que viajan, con la persona del móvil, que nace
- * aquí si aún no tiene. Escribe solo eso: la copia sale tal cual está la base.
+ * aquí si aún no tiene. Escribe solo eso: la copia sale tal cual está la base,
+ * salvo los entrenos borrados, que van sin sus notas ni sus bloques.
  *
  * Antes de devolverla, la pasa por las mismas comprobaciones que al leerla: si
  * algo de la base no cupiera en el formato, falla al exportar, con el móvil
- * delante, y no al restaurar, cuando quizá ya no está.
+ * delante, y no al restaurar, cuando quizá ya no está. Entonces lanza
+ * DatoQueNoCabe.
  */
 export async function crearCopiaEn(tx: Transaccion, { ahora, app, nuevoId }: OpcionesDeCopiar): Promise<Copia> {
   const persona = await personaEn(tx, { ahora, nuevoId });
@@ -489,7 +553,10 @@ export async function crearCopiaEn(tx: Transaccion, { ahora, app, nuevoId }: Opc
       usa_calorias: comoMarca(e.usa_calorias),
       borrado: comoMarca(e.borrado),
     })),
-    entrenos: entrenos.map((e) => ({ ...e, borrado: comoMarca(e.borrado), bloques: bloquesDe.get(e.id) ?? [] })),
+    // De un entreno borrado no van sus notas ni sus bloques.
+    entrenos: entrenos.map((e) =>
+      comoMarca(e.borrado) === 1 ? { ...e, notas: null, borrado: 1, bloques: [] } : { ...e, borrado: 0, bloques: bloquesDe.get(e.id) ?? [] },
+    ),
     ajustes: ajustes.map((a) => ({
       clave: a.clave,
       valor: JSON.parse(a.valor) as ValorDeAjuste,
@@ -499,7 +566,10 @@ export async function crearCopiaEn(tx: Transaccion, { ahora, app, nuevoId }: Opc
   try {
     comprobar(copia);
   } catch (error) {
-    throw new Error(`No se pudo crear una copia válida. ${(error as Error).message}`);
+    if (error instanceof CopiaNoValida && error.detalle !== undefined) {
+      throw new DatoQueNoCabe(error.detalle);
+    }
+    throw error;
   }
   return copia;
 }
@@ -507,6 +577,45 @@ export async function crearCopiaEn(tx: Transaccion, { ahora, app, nuevoId }: Opc
 /** El texto del fichero de una copia. */
 export function textoDeLaCopia(copia: Copia): string {
   return JSON.stringify(copia);
+}
+
+/**
+ * Lo que una última copia apuntada puede ir por delante de ahora y seguir
+ * contando: un día, para que un reloj que se corrige unos segundos o unas
+ * horas no la borre justo después de apuntarla.
+ */
+const MARGEN_DEL_RELOJ = 86_400_000;
+
+/**
+ * Cuándo se hizo la última copia que se sabe guardada fuera de este móvil, o
+ * null si ninguna. Hacer una copia no basta, porque la hoja de compartir no
+ * dice si se guardó: la apunta, con apuntarUltimaCopiaEn, quien confirma que
+ * la guardó, y también importarCopiaEn, al importar como suya una copia en un
+ * móvil sin entrenos sin borrar.
+ *
+ * Una apuntada que va más de un día por delante de ahora, porque se apuntó con
+ * el reloj adelantado, no cuenta: con ella, el recordatorio callaría hasta
+ * esa fecha. Una que va menos de un día por delante se da tal cual.
+ */
+export async function leerUltimaCopia(l: Lectura, ahora: number): Promise<number | null> {
+  const valor = await leerAjuste(l, ULTIMA_COPIA);
+  return typeof valor === 'number' && Number.isFinite(valor) && valor <= ahora + MARGEN_DEL_RELOJ ? valor : null;
+}
+
+/**
+ * Apunta que la copia hecha en ese instante está guardada fuera del móvil. Una
+ * copia hecha después de ahora, con otro reloj adelantado, cuenta con la hora
+ * de ahora; si esa hora es anterior a SELLO_MINIMO, que solo da un reloj
+ * atrasado, no apunta nada. No retrocede, salvo si la apuntada va por delante
+ * de ahora: la sustituye la siguiente que se apunte, aunque sea anterior. Con
+ * el reloj atrasado, pero después de SELLO_MINIMO, apunta esa hora atrasada.
+ */
+export async function apuntarUltimaCopiaEn(tx: Transaccion, hecha: number, ahora: number): Promise<void> {
+  const hora = Math.floor(Math.min(hecha, ahora));
+  if (hora < SELLO_MINIMO) return;
+  const apuntada = await leerUltimaCopia(tx, ahora);
+  if (apuntada !== null && apuntada <= ahora && apuntada >= hora) return;
+  await ponerAjusteEn(tx, ULTIMA_COPIA, hora, ahora);
 }
 
 /**
@@ -520,10 +629,10 @@ export function leerCopia(texto: string): Copia {
     // Un editor de texto puede haber guardado el fichero con la marca de orden de bytes (U+FEFF) delante.
     datos = JSON.parse(texto.charCodeAt(0) === 0xfeff ? texto.slice(1) : texto);
   } catch {
-    throw new CopiaNoValida('El fichero no es una copia de Quimera.');
+    throw new CopiaNoValida('noEsCopia');
   }
   if (typeof datos !== 'object' || datos === null || (datos as { formato?: unknown }).formato !== FORMATO_DE_COPIA) {
-    throw new CopiaNoValida('El fichero no es una copia de Quimera.');
+    throw new CopiaNoValida('noEsCopia');
   }
   const { version } = datos as { version?: unknown };
   if (typeof version === 'number' && Number.isInteger(version) && version > VERSION_DE_COPIA) {
@@ -596,6 +705,8 @@ type Plan = {
   personaDelMovil: string | undefined;
   /** Las otras personas que este móvil ya aceptó como suyas. */
   otrasSuyas: string[];
+  /** Si el móvil no tiene ningún entreno sin borrar, como uno recién estrenado. */
+  movilSinEntrenos: boolean;
 };
 
 /**
@@ -615,12 +726,12 @@ async function planear(l: Lectura, copia: Copia): Promise<Plan> {
   for (const entreno of copia.entrenos) {
     if (!disciplinas.has(entreno.disciplina)) {
       if (mas) throw new CopiaMasNueva();
-      throw new CopiaNoValida(`La copia está dañada: la disciplina ${entreno.disciplina} no existe.`);
+      throw new CopiaNoValida('danada', `la disciplina ${entreno.disciplina} no existe`);
     }
     for (const serie of entreno.bloques.flatMap((b) => b.series)) {
       if (!conocidos.has(serie.ejercicio_id)) {
         if (mas) throw new CopiaMasNueva();
-        throw new CopiaNoValida(`La copia está dañada: el ejercicio ${serie.ejercicio_id} no existe.`);
+        throw new CopiaNoValida('danada', `el ejercicio ${serie.ejercicio_id} no existe`);
       }
     }
   }
@@ -639,7 +750,7 @@ async function planear(l: Lectura, copia: Copia): Promise<Plan> {
   for (const ejercicio of copia.ejercicios) {
     const local = ejerciciosDelMovil.get(ejercicio.id);
     if (local !== undefined && local.propio === 0) {
-      throw new CopiaNoValida(`La copia está dañada: el ejercicio ${ejercicio.id} es del catálogo.`);
+      throw new CopiaNoValida('danada', `el ejercicio ${ejercicio.id} es del catálogo`);
     }
     const { escribir, efecto } = decidir(local, ejercicio);
     resumen.ejercicios[efecto]++;
@@ -681,8 +792,9 @@ async function planear(l: Lectura, copia: Copia): Promise<Plan> {
   resumen.preguntar = resumen.persona !== 'misma';
 
   cuentasSiNo.ajustes.sinCambios = copia.ajustes.length;
+  const movilSinEntrenos = ![...entrenosDelMovil.values()].some((e) => e.borrado === 0);
 
-  return { resumen, cuentasSiNo, ejercicios, entrenos, ajustes, personaDelMovil, otrasSuyas };
+  return { resumen, cuentasSiNo, ejercicios, entrenos, ajustes, personaDelMovil, otrasSuyas, movilSinEntrenos };
 }
 
 /**
@@ -724,9 +836,11 @@ export type OpcionesDeImportar = {
   /**
    * Si la copia es de la persona de este móvil, cuando el resumen pide
    * preguntarlo. Si lo es, el móvil toma sus ajustes más recientes y recuerda
-   * la persona de la copia como suya; si no, solo entran los entrenos y los
-   * ejercicios propios que el móvil no tiene, y ningún ajuste. En los dos
-   * casos, si el móvil aún no tenía persona, estrena la suya.
+   * la persona de la copia como suya, y si no tenía ningún entreno sin borrar,
+   * la copia cuenta como su última copia, como dice apuntarUltimaCopiaEn; si
+   * no, solo entran los entrenos y los ejercicios propios que el móvil no
+   * tiene, y ningún ajuste. En los dos casos, si el móvil aún no tenía
+   * persona, estrena la suya.
    */
   esMia?: boolean;
 };
@@ -736,8 +850,9 @@ export type OpcionesDeImportar = {
  * devuelve lo que ha cambiado. Si la copia es de la persona del móvil, cada
  * entreno de la copia con un sello mayor que el del móvil sustituye entero al
  * del móvil, con sus bloques y sus series, y conserva su sello y su marca de
- * borrado. Si no, solo entran los que el móvil no tiene, con su marca de
- * borrado y el sello mínimo.
+ * borrado; salvo un borrado sobre un entreno que el móvil tiene, que solo le
+ * cambia la marca y el sello, como un borrado hecho en el móvil. Si no, solo
+ * entran los que el móvil no tiene, con su marca de borrado y el sello mínimo.
  *
  * Los entrenos se escriben por tandas, con json_each: cuatro sentencias por
  * cada cien, en lugar de una por cada serie, que en el móvil serían decenas de
@@ -759,8 +874,19 @@ export async function importarCopiaEn(
   // que entra lleva el sello mínimo: así pierde frente a cualquier versión de
   // los móviles de esta persona, también de uno que aún no lo tenga.
   const ejercicios = plan.ejercicios.filter(({ existe }) => suya || !existe);
-  const entrenosAEscribir = plan.entrenos
-    .filter(({ existe }) => suya || !existe)
+  const aEscribir = plan.entrenos.filter(({ existe }) => suya || !existe);
+  // Un borrado que gana sobre un entreno que el móvil tiene se aplica como un
+  // borrado hecho en el móvil: cambian su marca y su sello, y el disparador
+  // entreno_marca_sus_hijas marca sus bloques y sus series. Lo que el móvil
+  // guarda de él se queda, porque la copia ya no lo trae. Si ya estaba
+  // borrado, solo cambia su sello: el disparador no salta, y sus bloques y sus
+  // series se quedan con el sello de su borrado, que nadie lee y que
+  // restaurarlo vuelve a igualar.
+  const borradosQueYaEstan = aEscribir
+    .filter(({ entreno, existe }) => existe && entreno.borrado === 1)
+    .map(({ entreno }) => ({ id: entreno.id, modificado: entreno.modificado }));
+  const entrenosAEscribir = aEscribir
+    .filter(({ entreno, existe }) => !existe || entreno.borrado === 0)
     .map(({ entreno }) => (suya ? entreno : { ...entreno, modificado: SELLO_MINIMO }));
 
   for (const { ejercicio, existe } of ejercicios) {
@@ -841,6 +967,16 @@ export async function importarCopiaEn(
     );
   }
 
+  // Los borrados que ganan sobre entrenos que el móvil tiene, después de los
+  // demás: son otros entrenos, así que el orden no cambia el resultado.
+  for (let i = 0; i < borradosQueYaEstan.length; i += TANDA) {
+    await tx.runAsync(
+      `UPDATE entreno SET borrado = 1, modificado = b.value ->> '$.modificado'
+       FROM json_each(:borrados) AS b WHERE entreno.id = b.value ->> '$.id'`,
+      p({ borrados: JSON.stringify(borradosQueYaEstan.slice(i, i + TANDA)) }),
+    );
+  }
+
   // Un móvil sin persona estrena la suya, sea la copia suya o no: nunca toma la de una copia.
   if (plan.personaDelMovil === undefined) {
     await ponerAjusteEn(tx, PERSONA, nuevoId(), ahora);
@@ -856,6 +992,14 @@ export async function importarCopiaEn(
     // Recuerda la persona de la copia como suya, sin repetidas: sus copias ya no preguntarán.
     if (copia.persona !== plan.personaDelMovil && !plan.otrasSuyas.includes(copia.persona)) {
       await ponerAjusteEn(tx, OTRAS_SUYAS, [...new Set([...plan.otrasSuyas, copia.persona])].sort(), ahora);
+    }
+    // En un móvil sin entrenos sin borrar, la copia propia que se acaba de
+    // importar trae todo lo que el móvil enseña, y está guardada fuera:
+    // cuenta como su última copia, como dice apuntarUltimaCopiaEn. No lleva
+    // los borrados de este móvil que trae vivos con un sello anterior: aquí
+    // siguen borrados, pero volverían si se restaurara en otro móvil.
+    if (plan.movilSinEntrenos) {
+      await apuntarUltimaCopiaEn(tx, copia.exportado, ahora);
     }
   }
   return resumenSegun(plan, suya);

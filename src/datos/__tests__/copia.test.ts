@@ -8,11 +8,15 @@ import { leerAjuste, ponerAjusteEn, type ValorDeAjuste } from '@/datos/ajustes';
 import { p, puertaDe } from '@/datos/base';
 import { CATALOGO_VERSION } from '@/datos/catalogo';
 import {
+  apuntarUltimaCopiaEn,
   CopiaMasNueva,
   CopiaNoValida,
   crearCopiaEn,
+  DatoQueNoCabe,
+  datosDeLaCopia,
   importarCopiaEn,
   leerCopia,
+  leerUltimaCopia,
   nombreDeLaCopia,
   resumirImportacion,
   textoDeLaCopia,
@@ -109,6 +113,23 @@ const loQueViaja = (db: BaseDePrueba) => [
   ...['entreno', 'bloque', 'serie', 'ejercicio'].map((tabla) => filas(db, tabla)),
   db.mirar("SELECT * FROM ajuste WHERE clave NOT GLOB 'local.*' AND clave <> 'persona' ORDER BY clave"),
 ];
+/**
+ * Los entrenos, los bloques y las series de un móvil como llegan con su copia:
+ * de los entrenos borrados, su fila sin las notas, y sin bloques ni series.
+ */
+const comoViajan = (db: BaseDePrueba) => {
+  const entrenos = filas(db, 'entreno');
+  const borrados = new Set(entrenos.filter((e) => e.borrado === 1).map((e) => e.id));
+  const bloques = filas(db, 'bloque').filter((b) => !borrados.has(b.entreno_id));
+  const deLosBloques = new Set(bloques.map((b) => b.id));
+  return [
+    entrenos.map((e) => (borrados.has(e.id) ? { ...e, notas: null } : e)),
+    bloques,
+    filas(db, 'serie').filter((s) => deLosBloques.has(s.bloque_id)),
+  ];
+};
+/** Los entrenos, los bloques y las series de un móvil, para comparar con comoViajan. */
+const entrenosDe = (db: BaseDePrueba) => ['entreno', 'bloque', 'serie'].map((tabla) => filas(db, tabla));
 
 type DelEjercicio = { nombre?: string; grupo?: string; mide?: [number, number, number, number, number]; borrado?: 0 | 1 };
 
@@ -280,20 +301,31 @@ describe.each(['real', 'integer'] as const)('La copia de los datos, con los núm
       expect(enLaCopia.bloques.map((b) => b.series.map((s) => s.id))).toEqual(entreno.bloques.map((b) => b.series.map((s) => s.id)));
     });
 
-    it('lleva también los entrenos borrados, con su marca, para que no reaparezcan en otro móvil', async () => {
+    it('lleva también los entrenos borrados, con su marca, para que no reaparezcan en otro móvil, pero sin sus notas ni sus bloques', async () => {
       const hyrox = hyroxConDescansos(nuevoId);
-      const gimnasio = gimnasioConCalentamiento(nuevoId);
+      const gimnasio: Entreno = { ...gimnasioConCalentamiento(nuevoId), hora: '07:30', notas: 'Algo que no debe salir del móvil' };
       await guardar(origen, hyrox, T0);
       await guardar(origen, gimnasio, T0 + 1000);
       await borrar(origen, gimnasio.id, T0 + 2000);
-      const { entrenos } = await copiar(origen);
-      expect(entrenos.map((e) => [e.id, e.borrado, e.modificado])).toEqual(
+      const copia = await copiar(origen);
+      expect(copia.entrenos.map((e) => [e.id, e.borrado, e.modificado])).toEqual(
         expect.arrayContaining([
           [hyrox.id, 0, T0],
           [gimnasio.id, 1, T0 + 2000],
         ]),
       );
-      expect(entrenos.find((e) => e.id === gimnasio.id)?.bloques).toHaveLength(gimnasio.bloques.length);
+      const { notas, bloques, ...resto } = copia.entrenos.find((e) => e.id === gimnasio.id)!;
+      expect({ notas, bloques }).toEqual({ notas: null, bloques: [] });
+      // Lo demás del entreno viaja tal cual, también la hora: el formato lo pide.
+      const { notas: _, ...fila } = filas(origen, 'entreno').find((e) => e.id === gimnasio.id)!;
+      expect(resto).toEqual(fila);
+      expect(resto.hora).toBe('07:30');
+      expect(textoDeLaCopia(copia)).not.toContain('Algo que no debe salir del móvil');
+      // El entreno que no está borrado viaja entero.
+      expect(copia.entrenos.find((e) => e.id === hyrox.id)?.bloques).toHaveLength(hyrox.bloques.length);
+      // Y en el móvil, el borrado sigue entero, por si se deshace el borrado.
+      expect(filas(origen, 'entreno').find((e) => e.id === gimnasio.id)?.notas).toBe('Algo que no debe salir del móvil');
+      expect(filas(origen, 'bloque').filter((b) => b.entreno_id === gimnasio.id)).toHaveLength(gimnasio.bloques.length);
     });
 
     it('lleva solo los ejercicios propios, no los del catálogo, y solo los ajustes que viajan', async () => {
@@ -322,7 +354,7 @@ describe.each(['real', 'integer'] as const)('La copia de los datos, con los núm
       expect(copia.ajustes).toEqual([{ clave: 'unidades', valor: { peso: 'kg' }, modificado: T0 + 7 }]);
     });
 
-    it('su texto se lee igual, con ejercicios propios y ajustes, y el fichero se llama por su fecha', async () => {
+    it('su texto se lee igual, con ejercicios propios y ajustes', async () => {
       const propio = nuevoId();
       await anadirEjercicioPropio(origen, propio, T0);
       await guardar(origen, hyroxConDescansos(nuevoId), T0);
@@ -330,7 +362,12 @@ describe.each(['real', 'integer'] as const)('La copia de los datos, con los núm
       await puertaDe(origen).escribir((tx) => ponerAjusteEn(tx, 'unidades', 'kg', T0));
       const copia = await copiar(origen);
       expect(leerCopia(textoDeLaCopia(copia))).toEqual(copia);
-      expect(nombreDeLaCopia('2026-11-23')).toBe('quimera-2026-11-23.json');
+    });
+
+    it('el fichero se llama por la fecha y la hora locales en que se hace, con las horas y los minutos de dos cifras', () => {
+      expect(nombreDeLaCopia(new Date(2026, 10, 23, 18, 30, 59))).toBe('quimera-2026-11-23-1830.json');
+      expect(nombreDeLaCopia(new Date(2027, 0, 5, 7, 5))).toBe('quimera-2027-01-05-0705.json');
+      expect(nombreDeLaCopia(new Date(2026, 11, 31, 0, 0))).toBe('quimera-2026-12-31-0000.json');
     });
 
     it('con el reloj del móvil en 1970 y una versión de la app de 40 caracteres, la copia sale así y se puede leer', async () => {
@@ -340,11 +377,35 @@ describe.each(['real', 'integer'] as const)('La copia de los datos, con los núm
       expect(leerCopia(textoDeLaCopia(copia))).toMatchObject({ exportado: 0, app });
     });
 
-    it('si algo no cupiera en el formato, falla al crearla, con el móvil delante, y no deja nada escrito', async () => {
-      await expect(puertaDe(origen).escribir((tx) => crearCopiaEn(tx, { ahora: T0, app: '', nuevoId }))).rejects.toThrow(
-        'No se pudo crear una copia válida. La copia está dañada: app no es válido.',
-      );
+    it('si algo no cupiera en el formato, falla al crearla, con el móvil delante, dice dónde y no deja nada escrito', async () => {
+      const error = await puertaDe(origen)
+        .escribir((tx) => crearCopiaEn(tx, { ahora: T0, app: '', nuevoId }))
+        .catch((e: unknown) => e);
+      // No es una copia dañada: es algo de este móvil que no cabe en ella.
+      expect(error).toBeInstanceOf(DatoQueNoCabe);
+      expect(error).not.toBeInstanceOf(CopiaNoValida);
+      expect(error).toMatchObject({ message: 'No se pudo crear una copia válida: app no es válido.', detalle: 'app no es válido' });
       expect(await persona(origen)).toBeUndefined();
+    });
+
+    it('lo que se enseña de ella antes de importarla: cuándo se hizo y cuántos entrenos trae sin borrar', async () => {
+      const gimnasio = gimnasioConCalentamiento(nuevoId);
+      await guardar(origen, hyroxConDescansos(nuevoId), T0);
+      await guardar(origen, gimnasio, T0);
+      await borrar(origen, gimnasio.id, T0 + 10);
+      expect(datosDeLaCopia(await copiar(origen, T0 + 5000))).toEqual({ hecha: T0 + 5000, entrenos: 1 });
+      // Con el reloj de quien la hizo antes del primer sello válido, la fecha no se enseña.
+      expect(datosDeLaCopia(await copiar(origen, SELLO_MINIMO - 1))).toEqual({ hecha: null, entrenos: 1 });
+      expect(datosDeLaCopia(await copiar(origen, SELLO_MINIMO))).toEqual({ hecha: SELLO_MINIMO, entrenos: 1 });
+      expect(datosDeLaCopia(await copiar(destino))).toEqual({ hecha: T0 + 100_000, entrenos: 0 });
+      // Una hora futura antes de 2100 se da tal cual; desde 2100, donde acaban las
+      // fechas de Quimera, no, y desde el año 10000 tampoco se podría decir como fecha.
+      const copia = await copiar(origen);
+      const ultimaDe2099 = Date.UTC(2100, 0, 1) - 1;
+      expect(datosDeLaCopia({ ...copia, exportado: ultimaDe2099 }).hecha).toBe(ultimaDe2099);
+      for (const exportado of [Date.UTC(2100, 0, 1), 300_000_000_000_000, 9_000_000_000_000_000]) {
+        expect(datosDeLaCopia({ ...copia, exportado }).hecha).toBeNull();
+      }
     });
   });
 
@@ -353,7 +414,7 @@ describe.each(['real', 'integer'] as const)('La copia de los datos, con los núm
       for (const texto of ['', 'hola', '[]', '{}', 'null', JSON.stringify({ formato: 'otra', version: 1 })]) {
         const error = errorDe(() => leerCopia(texto));
         expect(error).toBeInstanceOf(CopiaNoValida);
-        expect(error.message).toBe('El fichero no es una copia de Quimera.');
+        expect(error).toMatchObject({ message: 'El fichero no es una copia de Quimera.', tipo: 'noEsCopia', detalle: undefined });
       }
     });
 
@@ -402,13 +463,13 @@ describe.each(['real', 'integer'] as const)('La copia de los datos, con los núm
       for (const [cambiar, que] of casos) {
         const error = conCambio(cambiar);
         expect(error).toBeInstanceOf(CopiaNoValida);
-        expect(error.message).toBe(`La copia está dañada: ${que}.`);
+        expect(error).toMatchObject({ message: `La copia está dañada: ${que}.`, tipo: 'danada', detalle: que });
       }
     });
   });
 
   describe('al importar', () => {
-    it('en un móvil vacío trae todos los entrenos tal cual, con sus sellos y sus marcas', async () => {
+    it('en un móvil vacío trae todos los entrenos tal cual, con sus sellos y sus marcas, y de los borrados, todo menos sus notas y sus bloques', async () => {
       const gimnasio = gimnasioConCalentamiento(nuevoId);
       await guardar(origen, hyroxConDescansos(nuevoId), T0);
       await guardar(origen, gimnasio, T0 + 1000);
@@ -417,9 +478,8 @@ describe.each(['real', 'integer'] as const)('La copia de los datos, con los núm
 
       const resumen = await importar(destino, copia, { esMia: true });
 
-      for (const tabla of ['entreno', 'bloque', 'serie']) {
-        expect(filas(destino, tabla)).toEqual(filas(origen, tabla));
-      }
+      expect(entrenosDe(destino)).toEqual(comoViajan(origen));
+      expect(filas(destino, 'entreno')).toHaveLength(2);
       expect(resumen.entrenos).toEqual({ nuevos: 1, actualizados: 0, borrados: 0, sinCambios: 1 });
     });
 
@@ -507,19 +567,91 @@ describe.each(['real', 'integer'] as const)('La copia de los datos, con los núm
       expect(await puertaDe(destino).leer((l) => leerEntreno(l, soloAqui.id))).not.toBeNull();
     });
 
-    it('un borrado más reciente en la copia borra el del móvil, con sus bloques y sus series', async () => {
+    it('un borrado más reciente en la copia borra el del móvil como un borrado hecho en él: con la marca y el sello de la copia, y sin perder ni mezclar lo que guarda', async () => {
       const hyrox = hyroxConDescansos(nuevoId);
-      await guardar(destino, hyrox, T0 + 10);
+      // En el móvil, una versión distinta en cada columna, con otras series y otro bloque.
+      const delMovil: Entreno = {
+        ...hyrox,
+        disciplina: 'gimnasio',
+        fecha: '2026-10-01',
+        hora: null,
+        duracionMs: 3_000_000,
+        esfuerzo: 5,
+        notas: 'Del móvil',
+        bloques: [{ ...hyrox.bloques[1], series: hyrox.bloques[1].series.slice(0, 1) }, gimnasioConCalentamiento(nuevoId).bloques[0]],
+      };
+      await guardar(destino, delMovil, T0 + 10);
       await guardar(origen, hyrox, T0 + 10);
       await borrar(origen, hyrox.id, T0 + 20);
+      const antes = entrenosDe(destino);
 
       const resumen = await importar(destino, await copiar(origen), { esMia: true });
 
       expect(resumen.entrenos).toEqual({ nuevos: 0, actualizados: 0, borrados: 1, sinCambios: 0 });
       expect(await puertaDe(destino).leer((l) => leerEntreno(l, hyrox.id))).toBeNull();
-      expect(destino.mirar('SELECT DISTINCT borrado, modificado FROM bloque UNION SELECT DISTINCT borrado, modificado FROM serie')).toEqual([
-        { borrado: 1, modificado: T0 + 20 },
-      ]);
+      // Las mismas filas, con sus notas, sus bloques y sus series, marcadas con el sello de la copia.
+      expect(entrenosDe(destino)).toEqual(antes.map((tabla) => tabla.map((fila) => ({ ...fila, borrado: 1, modificado: T0 + 20 }))));
+      // Si en el móvil se restaurara, volvería su versión, entera.
+      await puertaDe(destino).escribir((tx) => restaurarEntrenoEn(tx, hyrox.id, T0 + 30));
+      expect(await puertaDe(destino).leer((l) => leerEntreno(l, hyrox.id))).toEqual({ ...delMovil, modificado: T0 + 30 });
+    });
+
+    it('un borrado más reciente sobre un entreno que el móvil ya tenía borrado solo le cambia el sello', async () => {
+      const hyrox: Entreno = { ...hyroxConDescansos(nuevoId), notas: 'Del móvil' };
+      await guardar(destino, hyrox, T0 + 10);
+      await borrar(destino, hyrox.id, T0 + 15);
+      await guardar(origen, hyrox, T0 + 10);
+      await borrar(origen, hyrox.id, T0 + 20);
+      const [entrenos, ...hijas] = entrenosDe(destino);
+
+      const resumen = await importar(destino, await copiar(origen), { esMia: true });
+
+      expect(resumen.entrenos).toEqual({ nuevos: 0, actualizados: 0, borrados: 0, sinCambios: 1 });
+      expect(entrenosDe(destino)).toEqual([entrenos.map((fila) => ({ ...fila, modificado: T0 + 20 })), ...hijas]);
+    });
+
+    it('si en el móvil se deshace su propio borrado después de que llegara otro con una copia, el entreno vuelve entero', async () => {
+      // El móvil borra el entreno y, con el aviso de deshacer aún delante, importa
+      // la copia de otro móvil suyo que lo borró más tarde, con el reloj adelantado.
+      // El otro móvil lo había corregido antes de borrarlo.
+      const hyrox: Entreno = { ...hyroxConDescansos(nuevoId), notas: 'Notas de aquí' };
+      await guardar(destino, hyrox, T0 + 10);
+      await guardar(origen, { ...hyrox, fecha: '2026-11-13', hora: '07:15', duracionMs: 3_000_000, esfuerzo: 5, notas: 'Notas de allí' }, T0 + 10);
+      await borrar(destino, hyrox.id, T0 + 400);
+      await borrar(origen, hyrox.id, T0 + 600);
+      const antes = destino.mirar('SELECT * FROM entreno');
+      await importar(destino, await copiar(origen), { esMia: true, ahora: T0 + 450 });
+      // Ya estaba borrado aquí: solo cambia su sello.
+      expect(destino.mirar('SELECT * FROM entreno')).toEqual(antes.map((fila) => ({ ...(fila as object), modificado: T0 + 600 })));
+
+      await puertaDe(destino).escribir((tx) => restaurarEntrenoEn(tx, hyrox.id, T0 + 500));
+
+      expect(await puertaDe(destino).leer((l) => leerEntreno(l, hyrox.id))).toEqual({ ...hyrox, modificado: T0 + 601 });
+    });
+
+    it('aplica por tandas los borrados que llegan sobre entrenos que el móvil tiene, también más de cien', async () => {
+      const entrenos = Array.from({ length: 210 }, () => hyroxConDescansos(nuevoId));
+      await puertaDe(origen).escribir(async (tx) => {
+        for (const entreno of entrenos) await guardarEntrenoEn(tx, entreno, { ahora: T0 });
+      });
+      await importar(destino, await copiar(origen), { esMia: true });
+      await puertaDe(origen).escribir(async (tx) => {
+        for (const entreno of entrenos) await borrarEntrenoEn(tx, entreno.id, T0 + 1000);
+      });
+      const copia = await copiar(origen, T0 + 300_000);
+      const escrituras = jest.spyOn(destino, 'runAsync');
+      let resumen;
+      try {
+        resumen = await importar(destino, copia, { ahora: T0 + 400_000 });
+        // Una sentencia por cada cien borrados, y nada más: la persona ya está y el móvil tenía entrenos.
+        expect(escrituras).toHaveBeenCalledTimes(3);
+      } finally {
+        escrituras.mockRestore();
+      }
+
+      expect(resumen.entrenos).toEqual({ nuevos: 0, actualizados: 0, borrados: 210, sinCambios: 0 });
+      expect(destino.mirar('SELECT DISTINCT borrado, modificado FROM entreno')).toEqual([{ borrado: 1, modificado: T0 + 1000 }]);
+      expect(destino.mirar('SELECT COUNT(*) AS n FROM serie WHERE borrado = 1')).toEqual([{ n: 210 * 14 }]);
     });
 
     it('un entreno restaurado después en el otro móvil vuelve a aparecer', async () => {
@@ -604,7 +736,8 @@ describe.each(['real', 'integer'] as const)('La copia de los datos, con los núm
       const resumen = await importar(destino, await copiar(origen), { esMia: true });
 
       expect(resumen.ajustes).toEqual({ nuevos: 1, actualizados: 1, borrados: 0, sinCambios: 1 });
-      expect(destino.mirar("SELECT clave, valor, modificado FROM ajuste WHERE clave NOT IN ('local.migraciones', 'local.catalogo', 'local.personas', 'persona') ORDER BY clave")).toEqual([
+      // La última copia, que este móvil sin entrenos apunta al importar, se prueba aparte.
+      expect(destino.mirar("SELECT clave, valor, modificado FROM ajuste WHERE clave NOT IN ('local.migraciones', 'local.catalogo', 'local.personas', 'local.ultima_copia', 'persona') ORDER BY clave")).toEqual([
         { clave: 'local.borrador', valor: '{"algo":1}', modificado: T0 },
         { clave: 'semana', valor: '"domingo"', modificado: T0 + 20 },
         { clave: 'tema', valor: '"oscuro"', modificado: T0 + 10 },
@@ -632,8 +765,9 @@ describe.each(['real', 'integer'] as const)('La copia de los datos, con los núm
       const escrituras = jest.spyOn(destino, 'runAsync');
       try {
         await importar(destino, copia, { esMia: true });
-        // Cuatro sentencias por tanda, la persona que estrena el móvil y la de la copia, que recuerda.
-        expect(escrituras).toHaveBeenCalledTimes(3 * 4 + 2);
+        // Cuatro sentencias por tanda, la persona que estrena el móvil, la de la
+        // copia, que recuerda, y la última copia, porque el móvil no tenía entrenos.
+        expect(escrituras).toHaveBeenCalledTimes(3 * 4 + 3);
       } finally {
         escrituras.mockRestore();
       }
@@ -984,10 +1118,8 @@ describe.each(['real', 'integer'] as const)('La copia de los datos, con los núm
       expect(resumen.entrenos).toEqual({ nuevos: 1, actualizados: 0, borrados: 0, sinCambios: 1 });
       expect(resumen.ejercicios).toEqual({ nuevos: 0, actualizados: 0, borrados: 0, sinCambios: 1 });
       expect(await importar(destino, copia, { esMia: false })).toEqual(resumen);
-      // Las mismas filas que en el otro móvil, con su marca, pero con el sello mínimo.
-      for (const tabla of ['entreno', 'bloque', 'serie']) {
-        expect(filas(destino, tabla)).toEqual(filas(origen, tabla).map((fila) => ({ ...fila, modificado: SELLO_MINIMO })));
-      }
+      // Las mismas filas que en el otro móvil, como viajan en su copia, con su marca, pero con el sello mínimo.
+      expect(entrenosDe(destino)).toEqual(comoViajan(origen).map((tabla) => tabla.map((fila) => ({ ...fila, modificado: SELLO_MINIMO }))));
       expect(destino.mirar('SELECT id, borrado, modificado FROM ejercicio WHERE propio = 1')).toEqual([
         { id: propio, borrado: 1, modificado: SELLO_MINIMO },
       ]);
@@ -1093,7 +1225,11 @@ describe.each(['real', 'integer'] as const)('La copia de los datos, con los núm
       const copia = conEjercicio(await copiar(origen), 'remo-nuevo');
       await expect(resumir(destino, { ...copia, catalogo: CATALOGO_VERSION + 1 })).rejects.toBeInstanceOf(CopiaMasNueva);
       await expect(importar(destino, { ...copia, catalogo: CATALOGO_VERSION + 1 })).rejects.toBeInstanceOf(CopiaMasNueva);
-      await expect(importar(destino, copia)).rejects.toThrow(new CopiaNoValida('La copia está dañada: el ejercicio remo-nuevo no existe.'));
+      // Sale ya al pedir el resumen, como una copia dañada que leerCopia no ve.
+      const danada = { tipo: 'danada', detalle: 'el ejercicio remo-nuevo no existe', message: 'La copia está dañada: el ejercicio remo-nuevo no existe.' };
+      await expect(resumir(destino, copia)).rejects.toMatchObject(danada);
+      await expect(importar(destino, copia)).rejects.toMatchObject(danada);
+      await expect(importar(destino, copia)).rejects.toBeInstanceOf(CopiaNoValida);
     });
 
     it('una disciplina que no existe es de una Quimera con una base más nueva, o la copia está dañada', async () => {
@@ -1101,7 +1237,156 @@ describe.each(['real', 'integer'] as const)('La copia de los datos, con los núm
       const copia = clon(await copiar(origen));
       copia.entrenos[0].disciplina = 'remo';
       await expect(importar(destino, { ...copia, base: MIGRACIONES.length + 1 })).rejects.toBeInstanceOf(CopiaMasNueva);
-      await expect(importar(destino, copia)).rejects.toThrow(new CopiaNoValida('La copia está dañada: la disciplina remo no existe.'));
+      const danada = { tipo: 'danada', detalle: 'la disciplina remo no existe', message: 'La copia está dañada: la disciplina remo no existe.' };
+      await expect(resumir(destino, copia)).rejects.toMatchObject(danada);
+      await expect(importar(destino, copia)).rejects.toMatchObject(danada);
+      await expect(importar(destino, copia)).rejects.toBeInstanceOf(CopiaNoValida);
+    });
+  });
+
+  describe('la última copia guardada', () => {
+    const ultima = (db: BaseDePrueba, ahora = T0 + 900_000) => puertaDe(db).leer((l) => leerUltimaCopia(l, ahora));
+    const apuntar = (db: BaseDePrueba, hecha: number, ahora = T0 + 900_000) =>
+      puertaDe(db).escribir((tx) => apuntarUltimaCopiaEn(tx, hecha, ahora));
+
+    it('no hay ninguna hasta que se apunta, va en milisegundos enteros y no retrocede', async () => {
+      expect(await ultima(origen)).toBeNull();
+      await apuntar(origen, T0 + 5000);
+      expect(await ultima(origen)).toBe(T0 + 5000);
+      await apuntar(origen, T0 + 4000);
+      expect(await ultima(origen)).toBe(T0 + 5000);
+      await apuntar(origen, T0 + 5000);
+      expect(await ultima(origen)).toBe(T0 + 5000);
+      await apuntar(origen, T0 + 6000.7);
+      expect(await ultima(origen)).toBe(T0 + 6000);
+    });
+
+    it('una copia hecha después de ahora, con otro reloj adelantado, cuenta con la hora de ahora', async () => {
+      await apuntar(origen, T0 + 50_000, T0 + 9000);
+      expect(await ultima(origen)).toBe(T0 + 9000);
+    });
+
+    it('con el reloj de este móvil o el de la copia antes del primer sello válido, no apunta nada', async () => {
+      await apuntar(origen, T0 + 5000, SELLO_MINIMO - 1);
+      await apuntar(origen, SELLO_MINIMO - 1);
+      expect(await ultima(origen)).toBeNull();
+      await apuntar(origen, SELLO_MINIMO);
+      expect(await ultima(origen)).toBe(SELLO_MINIMO);
+    });
+
+    it('una apuntada con el reloj adelantado no cuenta, ya con la hora bien, si va más de un día por delante, y la siguiente la sustituye', async () => {
+      const unAnoDespues = T0 + 365 * 86_400_000;
+      await apuntar(origen, unAnoDespues, unAnoDespues);
+      expect(await ultima(origen, unAnoDespues)).toBe(unAnoDespues);
+      // Con la hora bien, va un año por delante: el recordatorio no callaría un año.
+      expect(await ultima(origen, T0 + 6000)).toBeNull();
+      await apuntar(origen, T0 + 5000, T0 + 6000);
+      expect(await ultima(origen, T0 + 6000)).toBe(T0 + 5000);
+      // Con la hora bien, vuelve a no retroceder.
+      await apuntar(origen, T0 + 4000, T0 + 7000);
+      expect(await ultima(origen, T0 + 7000)).toBe(T0 + 5000);
+    });
+
+    it('una apuntada que va como mucho un día por delante sigue contando, pero la siguiente, con la hora bien, la sustituye', async () => {
+      await apuntar(origen, T0 + 50_000, T0 + 50_000);
+      // Leída con el reloj corregido unos segundos o unas horas.
+      expect(await ultima(origen, T0 + 6000)).toBe(T0 + 50_000);
+      expect(await ultima(origen, T0 + 50_000 - 86_400_000)).toBe(T0 + 50_000);
+      expect(await ultima(origen, T0 + 50_000 - 86_400_001)).toBeNull();
+      await apuntar(origen, T0 + 5000, T0 + 6000);
+      expect(await ultima(origen, T0 + 6000)).toBe(T0 + 5000);
+    });
+
+    it('una apuntada justo a la hora de ahora no retrocede', async () => {
+      await apuntar(origen, T0 + 5000, T0 + 5000);
+      await apuntar(origen, T0 + 4000, T0 + 5000);
+      expect(await ultima(origen, T0 + 5000)).toBe(T0 + 5000);
+    });
+
+    it('es de cada móvil: no viaja en la copia, y un valor que no es un número no cuenta', async () => {
+      await apuntar(origen, T0 + 5000);
+      const copia = await copiar(origen);
+      expect(copia.ajustes.map((a) => a.clave)).not.toContain('local.ultima_copia');
+      expect(textoDeLaCopia(copia)).not.toContain('ultima');
+      await puertaDe(destino).escribir((tx) => ponerAjusteEn(tx, 'local.ultima_copia', 'ayer', T0));
+      expect(await ultima(destino)).toBeNull();
+      await apuntar(destino, T0 + 5000);
+      expect(await ultima(destino)).toBe(T0 + 5000);
+    });
+
+    it('al importar como suya una copia en un móvil sin entrenos, la copia cuenta como su última copia, con su hora', async () => {
+      await guardar(origen, hyroxConDescansos(nuevoId), T0);
+      await importar(destino, await copiar(origen, T0 + 5000), { esMia: true, ahora: T0 + 9000 });
+      expect(await ultima(destino)).toBe(T0 + 5000);
+      // También una hecha justo en el primer sello válido.
+      const otro = await abrirBasePreparada({ enteros });
+      try {
+        await importar(otro, await copiar(origen, SELLO_MINIMO), { esMia: true, ahora: T0 + 9000 });
+        expect(await ultima(otro)).toBe(SELLO_MINIMO);
+      } finally {
+        otro.cerrar();
+      }
+    });
+
+    it('si el reloj del móvil que la hizo va por delante del de este, cuenta con la hora de este', async () => {
+      await guardar(origen, hyroxConDescansos(nuevoId), T0);
+      await importar(destino, await copiar(origen, T0 + 50_000), { esMia: true, ahora: T0 + 9000 });
+      expect(await ultima(destino)).toBe(T0 + 9000);
+    });
+
+    it('un móvil con solo entrenos borrados también cuenta como sin entrenos', async () => {
+      const gimnasio = gimnasioConCalentamiento(nuevoId);
+      await guardar(destino, gimnasio, T0);
+      await borrar(destino, gimnasio.id, T0 + 10);
+      await guardar(origen, hyroxConDescansos(nuevoId), T0);
+      await importar(destino, await copiar(origen, T0 + 5000), { esMia: true, ahora: T0 + 9000 });
+      expect(await ultima(destino)).toBe(T0 + 5000);
+    });
+
+    it('no cuenta si el móvil ya tenía entrenos, si la copia es de otra persona o si el reloj que la hizo no es creíble', async () => {
+      await guardar(origen, hyroxConDescansos(nuevoId), T0);
+      // Con entrenos en el móvil, la copia no los tiene todos.
+      await guardar(destino, gimnasioConCalentamiento(nuevoId), T0);
+      await importar(destino, await copiar(origen, T0 + 5000), { esMia: true, ahora: T0 + 9000 });
+      expect(await ultima(destino)).toBeNull();
+      const otro = await abrirBasePreparada({ enteros });
+      try {
+        // Con «no», la copia es de otra persona.
+        await importar(otro, await copiar(origen, T0 + 5000), { esMia: false, ahora: T0 + 9000 });
+        expect(await ultima(otro)).toBeNull();
+      } finally {
+        otro.cerrar();
+      }
+      const conRelojViejo = await abrirBasePreparada({ enteros });
+      try {
+        // Hecha con el reloj antes del primer sello válido.
+        await importar(conRelojViejo, await copiar(origen, SELLO_MINIMO - 1), { esMia: true, ahora: T0 + 9000 });
+        expect(await ultima(conRelojViejo)).toBeNull();
+      } finally {
+        conRelojViejo.cerrar();
+      }
+      const enMil970 = await abrirBasePreparada({ enteros });
+      try {
+        // Importada con el reloj de este móvil en 1970.
+        await importar(enMil970, await copiar(origen, T0 + 5000), { esMia: true, ahora: 0 });
+        expect(await ultima(enMil970)).toBeNull();
+      } finally {
+        enMil970.cerrar();
+      }
+    });
+
+    it('la copia de este mismo móvil también cuenta, sin preguntar, y no hace retroceder la que ya había', async () => {
+      // El móvil borra su único entreno e importa su propia copia de antes, que no lo devuelve.
+      const hyrox = hyroxConDescansos(nuevoId);
+      await guardar(origen, hyrox, T0);
+      const deAntes = await copiar(origen, T0 + 5000);
+      await borrar(origen, hyrox.id, T0 + 6000);
+      expect(await resumir(origen, deAntes)).toMatchObject({ persona: 'misma', preguntar: false });
+      await importar(origen, deAntes, { ahora: T0 + 9000 });
+      expect(await puertaDe(origen).leer((l) => leerEntreno(l, hyrox.id))).toBeNull();
+      expect(await ultima(origen)).toBe(T0 + 5000);
+      await importar(origen, await copiar(origen, T0 + 1000), { ahora: T0 + 9500 });
+      expect(await ultima(origen)).toBe(T0 + 5000);
     });
   });
 });
@@ -1215,7 +1500,9 @@ describe('Una copia dañada se rechaza, y el error dice dónde está', () => {
     estropear(estropeada);
     const error = errorDe(() => leerCopia(JSON.stringify(estropeada)));
     expect(error).toBeInstanceOf(CopiaNoValida);
-    expect(error.message).toBe(`La copia está dañada: ${donde} no es válido.`);
+    // «La cabecera» es femenina; el resto son nombres de campos.
+    const detalle = donde === 'su cabecera' ? 'su cabecera no es válida' : `${donde} no es válido`;
+    expect(error).toMatchObject({ message: `La copia está dañada: ${detalle}.`, tipo: 'danada', detalle });
   });
 
   it('un número que no cabe en un ajuste, también dentro de un objeto o de una lista', () => {
@@ -1493,6 +1780,105 @@ describe.each(['real', 'integer'] as const)('La copia de la versión 1 de un mó
       expect(typeof suya === 'string' && esUuidV7(suya)).toBe(true);
       expect(suya).not.toBe(PERSONA);
       expect(await ajuste(db, 'local.personas')).toEqual([PERSONA]);
+    } finally {
+      db.cerrar();
+    }
+  });
+});
+
+describe.each(['real', 'integer'] as const)('La copia de la versión 1 con borrados, como la escribe la app desde el commit 2a del paso 4, con los números como en %s', (enteros) => {
+  // copia-v1-con-borrados.json tampoco se cambia nunca. La escribieron las
+  // funciones de la app el 25 de noviembre de 2026, cuando los entrenos
+  // borrados dejaron de viajar con sus notas y sus bloques: un entreno del
+  // gimnasio con una serie de un ejercicio propio que se retiró después, y un
+  // entreno borrado, sin notas ni bloques. Una Quimera más nueva tiene que
+  // seguir importando así los borrados de la versión 1.
+  const TEXTO = readFileSync(join(__dirname, 'copia-v1-con-borrados.json'), 'utf8');
+  const PERSONA = '01a2125c-c78a-744a-8d7f-e76422f01609';
+  const REMO = '01a2125c-c780-7557-93db-ebcc281d26a3';
+  const [VIVO, BORRADO] = ['01a2125c-c781-73e8-a95a-be69cb2e0977', '01a2125c-c787-7446-b7cf-7a71b7ba671a'];
+  const [PRESS, CON_REMO] = ['01a2125c-c782-70e6-8bd9-6458f6153d83', '01a2125c-c785-7755-b3b2-15112c6eada6'];
+  const SERIES = ['01a2125c-c783-70b5-9a06-e84e1bf4ca8e', '01a2125c-c784-7247-a919-0a21e38622b4', '01a2125c-c786-7078-b5e4-14913f3ae96c'];
+  const MODIFICADO = 1_795_604_703_918;
+  const sinMedir = { tiempo_ms: null, distancia_m: null, calorias: null, descanso_ms: null, modificado: MODIFICADO, borrado: 0 };
+
+  it('no ha cambiado, en un móvil vacío deja exactamente estas filas, y al exportarla otra vez sus entrenos salen igual', async () => {
+    expect(huella(TEXTO)).toBe('01a3a324ba80e8');
+    const db = await abrirBasePreparada({ enteros });
+    try {
+      const copia = leerCopia(TEXTO);
+      expect(copia).toMatchObject({ app: '1.0.0', base: 1, catalogo: 2, exportado: 1_795_606_212_845, persona: PERSONA, ajustes: [] });
+      // El borrado, tal como lo escribe la app: sin notas ni bloques.
+      expect(copia.entrenos[0]).toEqual({
+        id: BORRADO,
+        disciplina: 'gimnasio',
+        fecha: '2026-11-22',
+        hora: '08:00',
+        duracion_ms: 1_800_000,
+        esfuerzo: 4,
+        notas: null,
+        modificado: 1_795_604_790_250,
+        borrado: 1,
+        bloques: [],
+      });
+      const resumen = await importar(db, copia, { ahora: T0, esMia: true });
+
+      const nada = { nuevos: 0, actualizados: 0, borrados: 0, sinCambios: 0 };
+      expect(resumen).toEqual({
+        entrenos: { ...nada, nuevos: 1, sinCambios: 1 },
+        ejercicios: { ...nada, sinCambios: 1 },
+        ajustes: nada,
+        persona: 'desconocida',
+        preguntar: true,
+      });
+      expect(db.mirar('SELECT * FROM entreno ORDER BY id')).toEqual([
+        { id: VIVO, disciplina: 'gimnasio', fecha: '2026-11-24', hora: '19:15', duracion_ms: 3_000_000, esfuerzo: 6, notas: 'Espalda y pecho', modificado: MODIFICADO, borrado: 0 },
+        { id: BORRADO, disciplina: 'gimnasio', fecha: '2026-11-22', hora: '08:00', duracion_ms: 1_800_000, esfuerzo: 4, notas: null, modificado: 1_795_604_790_250, borrado: 1 },
+      ]);
+      expect(db.mirar('SELECT * FROM bloque ORDER BY id')).toEqual([
+        { id: PRESS, entreno_id: VIVO, orden: 1, metros_corridos: null, tiempo_ms: null, descanso_ms: null, modificado: MODIFICADO, borrado: 0 },
+        { id: CON_REMO, entreno_id: VIVO, orden: 2, metros_corridos: null, tiempo_ms: null, descanso_ms: null, modificado: MODIFICADO, borrado: 0 },
+      ]);
+      expect(db.mirar('SELECT * FROM serie ORDER BY id')).toEqual([
+        { id: SERIES[0], bloque_id: PRESS, ronda: 1, orden: 1, ejercicio_id: 'press-banca', repeticiones: 10, peso_g: 50_000, ...sinMedir },
+        { id: SERIES[1], bloque_id: PRESS, ronda: 2, orden: 1, ejercicio_id: 'press-banca', repeticiones: 8, peso_g: 55_000, ...sinMedir },
+        { id: SERIES[2], bloque_id: CON_REMO, ronda: 1, orden: 1, ejercicio_id: REMO, repeticiones: 15, peso_g: null, ...sinMedir },
+      ]);
+      // El ejercicio retirado viaja entero, con su nombre: el entreno vivo lo sigue nombrando.
+      expect(db.mirar('SELECT * FROM ejercicio WHERE propio = 1')).toEqual([
+        { id: REMO, nombre: 'Remo con banda', grupo: 'espalda', usa_repeticiones: 1, usa_peso: 0, usa_tiempo: 0, usa_distancia: 0, usa_calorias: 0, propio: 1, modificado: 1_795_604_880_064, borrado: 1 },
+      ]);
+      // El móvil estrena su persona, recuerda la de la copia y, como no tenía entrenos, la cuenta como su última copia.
+      const suya = await persona(db);
+      expect(typeof suya === 'string' && esUuidV7(suya)).toBe(true);
+      expect(suya).not.toBe(PERSONA);
+      expect(await ajuste(db, 'local.personas')).toEqual([PERSONA]);
+      expect(await puertaDe(db).leer((l) => leerUltimaCopia(l, T0))).toBe(T0);
+
+      const otra = await copiar(db, T0 + 1000);
+      expect(otra.entrenos).toEqual(copia.entrenos);
+      expect(otra.ejercicios).toEqual(copia.ejercicios);
+    } finally {
+      db.cerrar();
+    }
+  });
+
+  it('sobre un móvil que tiene vivo el entreno borrado, solo lo marca, con el sello de la copia, y si allí se deshace el borrado, vuelve entero', async () => {
+    const db = await abrirBasePreparada({ enteros });
+    try {
+      const delMovil: Entreno = { ...gimnasioConCalentamiento(nuevoId), id: BORRADO, notas: 'Lo apunté dos veces' };
+      await guardar(db, delMovil, T0);
+      const antes = entrenosDe(db);
+
+      await importar(db, leerCopia(TEXTO), { ahora: T0 + 1000, esMia: true });
+
+      const [entrenos, bloques, series] = entrenosDe(db);
+      const suyos = new Set(bloques.filter((b) => b.entreno_id === BORRADO).map((b) => b.id));
+      expect([entrenos.filter((e) => e.id === BORRADO), bloques.filter((b) => suyos.has(b.id)), series.filter((s) => suyos.has(s.bloque_id))]).toEqual(
+        antes.map((tabla) => tabla.map((fila) => ({ ...fila, borrado: 1, modificado: 1_795_604_790_250 }))),
+      );
+      await puertaDe(db).escribir((tx) => restaurarEntrenoEn(tx, BORRADO, T0 + 2000));
+      expect(await puertaDe(db).leer((l) => leerEntreno(l, BORRADO))).toEqual({ ...delMovil, modificado: 1_795_604_790_251 });
     } finally {
       db.cerrar();
     }
