@@ -41,7 +41,8 @@ describe.each(['real', 'integer'] as const)('Los entrenos, con los números como
 
   it('cada columna de entreno, bloque y serie tiene su sitio en el código', () => {
     // Si una migración añade una columna, esta prueba falla: hay que llevarla a
-    // guardarEntrenoEn, a leerEntreno y a hyroxConDescansos.
+    // guardarEntrenoEn, a leerEntreno y a hyroxConDescansos, y decidir si entra
+    // en la copia (src/datos/copia.ts), que vigila su propia prueba.
     const columnas = (tabla: string) =>
       db.mirar<{ name: string }>(`SELECT name FROM pragma_table_info('${tabla}')`).map((c) => c.name);
     expect(columnas('entreno')).toEqual([
