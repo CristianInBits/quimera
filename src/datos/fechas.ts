@@ -61,6 +61,22 @@ export function horaDeInstante(ms: number): string {
   return horaLocal(new Date(ms));
 }
 
+/** La fecha local, AAAA-MM-DD, de un instante en milisegundos. */
+export function fechaDeInstante(ms: number): string {
+  return fechaLocal(new Date(ms));
+}
+
+/**
+ * Cuántos días van de una fecha a otra, contando días en el calendario: de
+ * ayer a hoy, 1, también con el cambio de hora; negativo si la segunda es
+ * anterior.
+ */
+export function diasEntre(desde: string, hasta: string): number {
+  const [a1, m1, d1] = partes(desde);
+  const [a2, m2, d2] = partes(hasta);
+  return Math.round((Date.UTC(a2, m2 - 1, d2) - Date.UTC(a1, m1 - 1, d1)) / 86_400_000);
+}
+
 /** Una fecha guardada como el Date de su medianoche local, para enseñarla. */
 export function deFecha(fecha: string): Date {
   const [a, m, d] = partes(fecha);

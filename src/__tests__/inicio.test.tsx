@@ -53,6 +53,7 @@ function rinoceronteSobreSuEscenario(): boolean {
   );
 }
 
+const PISTA_DE_LA_COPIA = '¿Tienes una copia de tus entrenos? Recupérala en Tus datos.';
 const VACIO = 'Cuando apuntes tu primer entreno, aquí verás la carga de la semana y cómo va respecto a la pasada.';
 
 /**
@@ -102,6 +103,20 @@ describe('Inicio', () => {
     expect(screen.getByText('Apuntar un entreno')).toBeOnTheScreen();
     expect(screen.queryByLabelText(/^Carga de esta semana/)).toBeNull();
     expect(screen.queryByText('de carga')).toBeNull();
+    // En un móvil nuevo, dónde recuperar la copia de otro.
+    expect(screen.getByText(PISTA_DE_LA_COPIA)).toHaveStyle({ color: PALETAS.claro.textoTenue });
+  });
+
+  it('lleva a Tus datos con un botón con borde junto al nombre, que baja debajo del lema si no cabe', async () => {
+    await renderRouter(RUTAS, { initialUrl: '/' });
+    const boton = await screen.findByRole('button', { name: 'Tus datos' });
+    expect(within(screen.getByTestId('cabecera')).getByRole('button', { name: 'Tus datos' })).toBe(boton);
+    expect(StyleSheet.flatten(boton.props.style)).toMatchObject({
+      backgroundColor: PALETAS.claro.superficie,
+      borderColor: PALETAS.claro.bordeControl,
+    });
+    expect(screen.getByTestId('icono-caja', { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(StyleSheet.flatten(screen.getByTestId('cabecera').props.style)).toMatchObject({ flexDirection: 'row', flexWrap: 'wrap' });
   });
 
   it('enseña la carga de esta semana, la compara con la pasada y da los minutos de cada disciplina de esta semana', async () => {
@@ -120,6 +135,8 @@ describe('Inicio', () => {
     expect(screen.queryByLabelText(/^Hyrox/)).toBeNull();
     expect(screen.getByText('Minutos por esfuerzo. Compara tus semanas entre sí, no unas disciplinas con otras.')).toBeOnTheScreen();
     expect(screen.queryByText(VACIO)).toBeNull();
+    expect(screen.queryByText(PISTA_DE_LA_COPIA)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Tus datos' })).toBeOnTheScreen();
   });
 
   it('con entrenos solo la semana pasada, cero de carga y lo que sumó la pasada, no el texto de bienvenida', async () => {

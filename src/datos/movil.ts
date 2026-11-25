@@ -1,11 +1,15 @@
+import Constants from 'expo-constants';
 import { getRandomValues } from 'expo-crypto';
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { crearGeneradorDeIds } from './ids';
 import { prepararBase } from './preparar';
 
-// Lo que une los módulos de datos con el móvil: su reloj, su azar y la base de
-// expo-sqlite.
+// Lo que une los módulos de datos con el móvil: su reloj, su azar, la base de
+// expo-sqlite y la versión de la app.
+
+/** La versión de la app que va en cada copia, la de app.json, como «1.0.0». */
+export const VERSION_DE_LA_APP = Constants.expoConfig?.version ?? 'desconocida';
 
 /**
  * Los identificadores nuevos de este móvil. El azar sale de getRandomValues,

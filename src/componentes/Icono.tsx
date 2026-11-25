@@ -18,6 +18,15 @@ const ICONOS = {
   plegar: { ios: 'chevron.up', android: 'expand_less' },
   cronometro: { ios: 'timer', android: 'timer' },
   repetir: { ios: 'repeat', android: 'repeat' },
+  // Los de «Tus datos»: la pantalla, hacer y importar una copia, el archivo y lo que cambia al importarlo.
+  caja: { ios: 'archivebox', android: 'inventory_2' },
+  subir: { ios: 'square.and.arrow.up', android: 'upload' },
+  bajar: { ios: 'square.and.arrow.down', android: 'download' },
+  documento: { ios: 'doc', android: 'description' },
+  circuloMas: { ios: 'plus.circle', android: 'add_circle' },
+  circuloMenos: { ios: 'minus.circle', android: 'do_not_disturb_on' },
+  actualizar: { ios: 'arrow.triangle.2.circlepath', android: 'sync' },
+  aviso: { ios: 'exclamationmark.circle', android: 'error' },
   // Los de cada disciplina, para su ficha.
   gimnasio: { ios: 'dumbbell', android: 'fitness_center' },
   hyrox: { ios: 'bolt', android: 'bolt' },

@@ -16,6 +16,7 @@ import {
   datosDeLaCopia,
   importarCopiaEn,
   leerCopia,
+  leerEstadoDeLasCopias,
   leerUltimaCopia,
   nombreDeLaCopia,
   resumirImportacion,
@@ -1295,6 +1296,21 @@ describe.each(['real', 'integer'] as const)('La copia de los datos, con los núm
       expect(await ultima(origen, T0 + 50_000 - 86_400_001)).toBeNull();
       await apuntar(origen, T0 + 5000, T0 + 6000);
       expect(await ultima(origen, T0 + 6000)).toBe(T0 + 5000);
+    });
+
+    it('el estado de las copias dice si hay entrenos sin borrar que copiar y la última copia, como leerUltimaCopia', async () => {
+      const estado = (ahora = T0 + 900_000) => puertaDe(origen).leer((l) => leerEstadoDeLasCopias(l, ahora));
+      expect(await estado()).toEqual({ hayEntrenos: false, ultimaCopia: null });
+      const hyrox = hyroxConDescansos(nuevoId);
+      await guardar(origen, hyrox, T0);
+      expect(await estado()).toEqual({ hayEntrenos: true, ultimaCopia: null });
+      await apuntar(origen, T0 + 5000);
+      expect(await estado()).toEqual({ hayEntrenos: true, ultimaCopia: T0 + 5000 });
+      // Un entreno borrado no es nada que copiar.
+      await borrar(origen, hyrox.id, T0 + 6000);
+      expect(await estado()).toEqual({ hayEntrenos: false, ultimaCopia: T0 + 5000 });
+      // Una última copia que va más de un día por delante no cuenta, como en leerUltimaCopia.
+      expect(await estado(T0 + 5000 - 86_400_001)).toEqual({ hayEntrenos: false, ultimaCopia: null });
     });
 
     it('una apuntada justo a la hora de ahora no retrocede', async () => {

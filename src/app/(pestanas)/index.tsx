@@ -64,12 +64,16 @@ export default function Inicio() {
   return (
     <SafeAreaView edges={BORDES_SEGUROS} style={[estilos.pantalla, { backgroundColor: paleta.fondo }]}>
       <ScrollView contentContainerStyle={estilos.contenido}>
-        <View style={estilos.cabecera}>
-          {/* Con la letra grande de iOS crece como los títulos del sistema, no sin tope. */}
-          <Text accessibilityRole="header" dynamicTypeRamp="largeTitle" style={[estilos.titulo, { color: paleta.texto }]}>
-            Quimera
-          </Text>
-          <Text style={[estilos.lema, { color: paleta.textoTenue }]}>Tus entrenos, en tu móvil.</Text>
+        {/* «Tus datos» va junto al nombre si cabe y, si no, como con la letra grande, debajo del lema. */}
+        <View testID="cabecera" style={estilos.cabecera}>
+          <View style={estilos.nombre}>
+            {/* Con la letra grande de iOS crece como los títulos del sistema, no sin tope. */}
+            <Text accessibilityRole="header" dynamicTypeRamp="largeTitle" style={[estilos.titulo, { color: paleta.texto }]}>
+              Quimera
+            </Text>
+            <Text style={[estilos.lema, { color: paleta.textoTenue }]}>Tus entrenos, en tu móvil.</Text>
+          </View>
+          <Boton titulo="Tus datos" icono="caja" variante="contorno" alPulsar={() => router.navigate('/tus-datos')} />
         </View>
         <EstaSemana carga={carga} error={error} />
         {/* Empuja el botón abajo, al alcance del pulgar, si la pantalla da para ello. */}
@@ -127,6 +131,10 @@ function EstaSemana({ carga, error }: { carga: CargaDeInicio | null; error: stri
             Cuando apuntes tu primer entreno, aquí verás la carga de la semana y cómo va respecto a la pasada.
           </Text>
         </Bocadillo>
+        {/* En un móvil nuevo, la copia de otro se recupera desde Tus datos. */}
+        <Text style={[estilos.parrafo, estilos.centrado, { color: paleta.textoTenue }]}>
+          ¿Tienes una copia de tus entrenos? Recupérala en Tus datos.
+        </Text>
       </Tarjeta>
     );
   }
@@ -194,7 +202,18 @@ const estilos = StyleSheet.create({
     paddingTop: espacio[3],
     paddingBottom: espacio[4],
   },
+  // Con flexWrap, el botón baja a la línea siguiente cuando no cabe junto al nombre, medido por la
+  // propia maqueta de la fila; el nombre encoge entonces hasta el ancho de la pantalla.
   cabecera: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    columnGap: espacio[3],
+    rowGap: espacio[3],
+  },
+  nombre: {
+    flexShrink: 1,
     gap: 2,
   },
   titulo: {

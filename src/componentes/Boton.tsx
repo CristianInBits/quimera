@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, Text, type TextStyle } from 'react-native';
+import type { Ref } from 'react';
+import { Pressable, StyleSheet, Text, type PressableInstance, type TextStyle } from 'react-native';
 
 import { Icono, type NombreDeIcono } from '@/componentes/Icono';
 import { sombraDelBotonPrincipal, usePaleta, type Paleta } from '@/tema/colores';
@@ -100,7 +101,8 @@ function colores(variante: VarianteDeBoton, paleta: Paleta): ColoresDeBoton {
 /**
  * Un botón de Quimera: nunca mide menos de 48 puntos, y con la letra grande
  * crece en alto en vez de cortar el texto. El icono, si lo lleva, va delante
- * del texto, o detrás si se pide, y el lector de pantalla no lo lee.
+ * del texto, o detrás si se pide, y el lector de pantalla no lo lee. Con ref,
+ * la pantalla puede llevar a él el foco del lector de pantalla.
  */
 export function Boton({
   titulo,
@@ -111,6 +113,7 @@ export function Boton({
   color,
   deshabilitado = false,
   etiqueta,
+  ref,
 }: {
   titulo: string;
   alPulsar: () => void;
@@ -123,6 +126,7 @@ export function Boton({
   deshabilitado?: boolean;
   /** Lo que lee el lector de pantalla, si el título no basta. */
   etiqueta?: string;
+  ref?: Ref<PressableInstance>;
 }) {
   const paleta = usePaleta();
   const medidas = MEDIDAS[variante];
@@ -132,6 +136,7 @@ export function Boton({
   const dibujo = icono !== undefined && <Icono nombre={icono} color={colorDeTinta} tamano={medidas.icono} />;
   return (
     <Pressable
+      ref={ref}
       accessibilityRole="button"
       accessibilityLabel={etiqueta ?? titulo}
       accessibilityState={{ disabled: deshabilitado }}

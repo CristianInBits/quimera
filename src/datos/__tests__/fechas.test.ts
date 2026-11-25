@@ -1,6 +1,8 @@
 import {
   deFecha,
   diaAnterior,
+  diasEntre,
+  fechaDeInstante,
   fechaEnFrase,
   fechaLocal,
   horaDeInstante,
@@ -104,6 +106,30 @@ describe('Las fechas locales', () => {
 
   it('horaDeInstante da la hora local de un instante', () => {
     expect(horaDeInstante(new Date(2026, 10, 15, 7, 5).getTime())).toBe('07:05');
+  });
+
+  it('fechaDeInstante da la fecha local de un instante, también cerca de medianoche', () => {
+    expect(fechaDeInstante(new Date(2026, 10, 15, 0, 30).getTime())).toBe('2026-11-15');
+    expect(fechaDeInstante(new Date(2026, 10, 15, 23, 30).getTime())).toBe('2026-11-15');
+  });
+
+  it('diasEntre cuenta días en el calendario, también con el cambio de hora y entre años', () => {
+    expect(diasEntre('2026-11-15', '2026-11-15')).toBe(0);
+    expect(diasEntre('2026-11-14', '2026-11-15')).toBe(1);
+    expect(diasEntre('2026-11-15', '2026-11-03')).toBe(-12);
+    // Los cambios de hora de 2026 en la zona de las pruebas, America/Los_Angeles: el 8 de marzo
+    // y el 1 de noviembre. Con las medianoches locales, saldría un día de menos o de más.
+    expect(process.env.TZ).toBe('America/Los_Angeles');
+    expect(diasEntre('2026-03-07', '2026-03-09')).toBe(2);
+    expect(diasEntre('2026-03-09', '2026-03-07')).toBe(-2);
+    expect(diasEntre('2026-10-31', '2026-11-02')).toBe(2);
+    expect(diasEntre('2026-11-02', '2026-10-31')).toBe(-2);
+    // Y los de España.
+    expect(diasEntre('2026-03-28', '2026-03-30')).toBe(2);
+    expect(diasEntre('2026-10-24', '2026-10-26')).toBe(2);
+    expect(diasEntre('2025-12-31', '2026-01-01')).toBe(1);
+    expect(diasEntre('2024-02-28', '2024-03-01')).toBe(2);
+    expect(() => diasEntre('2026-02-30', '2026-03-01')).toThrow(/no existe/);
   });
 
   it('deFecha da la medianoche local de una fecha guardada', () => {

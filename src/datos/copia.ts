@@ -602,6 +602,20 @@ export async function leerUltimaCopia(l: Lectura, ahora: number): Promise<number
   return typeof valor === 'number' && Number.isFinite(valor) && valor <= ahora + MARGEN_DEL_RELOJ ? valor : null;
 }
 
+/** Lo que la pantalla «Tus datos» enseña de las copias de este móvil. */
+export type EstadoDeLasCopias = {
+  /** Si el móvil tiene algún entreno sin borrar: sin ninguno, no hay nada que copiar. */
+  hayEntrenos: boolean;
+  /** La última copia que se sabe guardada fuera, como la da leerUltimaCopia. */
+  ultimaCopia: number | null;
+};
+
+/** Lo que la pantalla «Tus datos» enseña de las copias de este móvil, leído de una vez. */
+export async function leerEstadoDeLasCopias(l: Lectura, ahora: number): Promise<EstadoDeLasCopias> {
+  const hay = await l.getFirstAsync<{ hay: number }>('SELECT EXISTS (SELECT 1 FROM entreno WHERE borrado = 0) AS hay', {});
+  return { hayEntrenos: hay?.hay === 1, ultimaCopia: await leerUltimaCopia(l, ahora) };
+}
+
 /**
  * Apunta que la copia hecha en ese instante está guardada fuera del móvil. Una
  * copia hecha después de ahora, con otro reloj adelantado, cuenta con la hora
