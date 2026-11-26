@@ -19,6 +19,10 @@ En Windows, `scripts\arrancar.cmd` hace lo mismo que `npm start` sin activar nad
 
 Al arrancar sale un código QR: se escanea con Expo Go en el móvil, conectado a la misma wifi que el ordenador. Las comprobaciones son `npm test`, `npm run lint` y `npm run tipos`.
 
+## Documentación
+
+- [Las copias de los datos](docs/copias.md): qué lleva una copia, cómo se hace y todo lo que puede pasar al importarla.
+
 ## Privacidad del repositorio
 
 El repositorio es público, así que nada privado puede entrar en él. Al clonarlo hay que activar las comprobaciones que corren antes de cada commit y de cada subida:
